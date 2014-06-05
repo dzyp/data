@@ -18,8 +18,6 @@ type Entry interface {
 		Returns a value indicating relationship at the given dimension
 	*/
 	LessThan(entry Entry, dimension int) bool
-
-	String() string // for testing
 }
 
 type Bounds interface {
@@ -39,4 +37,9 @@ type Query interface {
 }
 
 type RangeTree interface {
+	Remove(entries ...Entry)
+	GetRange(query Query) []Entry
+	Insert(entries ...Entry)
+	Copy() RangeTree
+	Clear()
 }
