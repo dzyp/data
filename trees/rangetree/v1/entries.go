@@ -161,8 +161,6 @@ func newEntries(entries []r.Entry, dimension int, sort bool) *entriesWrapper {
 	sortedDimensionalValues[sortedIndex] = lastSeen
 	groups[lastSeen] = entries[lastIndex:len(entries)]
 
-	log.Printf(`dimensional values: %+v`, sortedDimensionalValues)
-
 	return &entriesWrapper{
 		entries:                 entries,
 		groups:                  groups,

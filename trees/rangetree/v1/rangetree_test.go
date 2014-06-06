@@ -13,6 +13,14 @@ type point struct {
 	coordinates [2]int
 }
 
+func (self *point) x() int {
+	return self.coordinates[0]
+}
+
+func (self *point) y() int {
+	return self.coordinates[1]
+}
+
 func (self *point) GetDimensionalValue(dimension int) int {
 	return self.coordinates[dimension-1]
 }
@@ -74,7 +82,6 @@ func (self *query) GetDimensionalBounds(dimension int) r.Bounds {
 }
 
 func newQuery(startRow, stopRow, startColumn, stopColumn int) *query {
-	log.Print(``)
 	return &query{
 		[2]*bound{
 			newBound(startRow, stopRow),
@@ -211,8 +218,6 @@ func TestQueryAfterEditHigh(t *testing.T) {
 	p = newPoint(9, 9)
 	tree.Insert(p)
 
-	log.Printf(`rt: %+v`, tree.root.left.value)
-
 	checkCoordinates(t, tree.root.right.value, 9, 9)
 
 	entries := tree.GetRange(newQuery(0, 10, 0, 10))
@@ -323,18 +328,53 @@ func TestLargeDenseMatrix(t *testing.T) {
 
 	tree := New(2)
 
+	points := make([]r.Entry, maxRange*maxRange)
+	index := 0
+
 	for i := 0; i < maxRange; i++ {
 		for j := 0; j < maxRange; j++ {
 			p := newPoint(i, j)
 			tree.Insert(p)
+			points[index] = p
+			index++
 		}
 	}
+
+	points = points[0:index]
 
 	t0 := time.Now()
 	entries := tree.GetRange(newQuery(0, maxRange, 0, maxRange))
 	log.Printf(`time to query: %d ms`, time.Since(t0).Nanoseconds()/int64(time.Millisecond))
 
-	checkLen(t, entries, maxRange*maxRange)
+	checkLen(t, entries, index)
+
+	mp := make(map[int]map[int]*point)
+
+	for _, entry := range points {
+		p := entry.(*point)
+		if _, ok := mp[p.x()]; !ok {
+			mp[p.x()] = make(map[int]*point)
+		}
+
+		mp[p.x()][p.y()] = p
+	}
+
+	t0 = time.Now()
+	index = 0
+	for i := 0; i < maxRange; i++ {
+		if _, ok := mp[i]; !ok {
+			continue
+		}
+
+		for j := 0; j < maxRange; j++ {
+			if p, ok := mp[i][j]; ok {
+				points[index] = p
+				index++
+			}
+		}
+	}
+
+	log.Printf(`time to query map: %d`, time.Since(t0).Nanoseconds()/int64(time.Millisecond))
 }
 
 func TestRemoveRootNode(t *testing.T) {

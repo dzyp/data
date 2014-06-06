@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"log"
-
 	r "github.com/dzyp/data/trees/rangetree"
 )
 
@@ -488,8 +486,6 @@ func (self *tree) all(results *queryResult) {
 func (self *tree) All() []r.Entry {
 	results := newResult(self.numChildren)
 	self.all(results)
-
-	log.Printf(`result: %+v`, results)
 
 	return results.entries[0:results.index]
 }
