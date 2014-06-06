@@ -20,13 +20,41 @@ type node struct {
 	rt          *tree
 }
 
-/*
-func newNode(tree *tree, entries ...r.Entry) *node {
-	if len(entries) == 0 {
+func newNode(tree *tree, entries *entriesWrapper) *node {
+	if entries.len() == 0 {
 		return nil
 	}
 
-}*/
+	if tree.isLastDimension() && entries.isLastValue() {
+		return &node{
+			value: entries.median(),
+		}
+	}
+
+	if entries.isLastValue() { // we need to add another tree
+		return &node{
+			value: entries.median(),
+			rt: new(
+				tree.maxDimensions,
+				tree.dimension+1,
+				entries.getEntriesAtValue(entries.median())...,
+			),
+		}
+	}
+	left, right := entries.split()
+
+	n := &node{
+		left:        newNode(tree, left),
+		right:       newNode(tree, right),
+		value:       entries.median(),
+		numChildren: entries.len(),
+	}
+
+	n.left.parent = n
+	n.right.parent = n
+
+	return n
+}
 
 type queryResult struct {
 	entries []r.Entry
@@ -160,13 +188,12 @@ func (self *node) flatten(query r.Query, dimension int, results *queryResult) {
 	self.right.flatten(query, dimension, results)
 }
 
-/*
 func (self *node) rebalance(tree *tree) {
 	if self.isLeaf() { // i can't be rebalanced
 		if self.rt == nil { // i am last dimension
 			return
 		} else {
-			return self.rt.rebalance()
+			self.rt.rebalance()
 		}
 	}
 
@@ -175,11 +202,26 @@ func (self *node) rebalance(tree *tree) {
 		self.left.all(results)
 		self.right.all(results)
 
+		entries := results.results()
+
+		n := newNode(tree, newEntries(entries, tree.dimension, false))
+		n.parent = self.parent
+		if self.isRoot() {
+			tree.root = n
+		} else {
+			if self.isLeft() {
+				self.parent.left = n
+			} else {
+				self.parent.right = n
+			}
+		}
+
+		return // we don't need to rebalance our children now
 	} else {
 		self.left.rebalance(tree)
 		self.right.rebalance(tree)
 	}
-}*/
+}
 
 /*
 returns the inserted entry, returns nil if nothing was inserted
@@ -423,14 +465,17 @@ func (self *tree) remove(entry r.Entry) r.Entry {
 	return entry
 }
 
-/*
 func (self *tree) rebalance() {
 	if self.root == nil {
 		return
 	}
 
-	self.root.rebalance(self.dimension)
-}*/
+	self.root.rebalance(self)
+}
+
+func (self *tree) isLastDimension() bool {
+	return self.dimension >= self.maxDimensions
+}
 
 func (self *tree) all(results *queryResult) {
 	if self.root == nil {
@@ -523,12 +568,17 @@ func (self *tree) Clear() {
 }
 
 func new(maxDimensions, dimension int, entries ...r.Entry) *tree {
-	return &tree{
+	t := &tree{
 		maxDimensions: maxDimensions,
 		dimension:     dimension,
+		numChildren:   len(entries),
 	}
+
+	t.root = newNode(t, newEntries(entries, dimension, false))
+	return t
 }
 
 func New(maxDimensions int, entries ...r.Entry) *tree {
+	byDimension(1).Sort(entries)
 	return new(maxDimensions, 1, entries...)
 }

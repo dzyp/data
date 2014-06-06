@@ -138,6 +138,10 @@ func checkEntries(t *testing.T, entries []r.Entry, expected ...*coordinate) {
 	}
 }
 
+func checkNode(t *testing.T, n *node, c *coordinate) {
+	checkEntries(t, []r.Entry{n.value}, c)
+}
+
 func TestInsertTwoPoints(t *testing.T) {
 	p1 := newPoint(0, 0)
 	p2 := newPoint(1, 1)
@@ -440,4 +444,90 @@ func TestFetchAll(t *testing.T) {
 		newCoordinate(1, 1),
 		newCoordinate(1, 2),
 	)
+}
+
+func TestNewNode(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 1)
+	p3 := newPoint(1, 3)
+	p4 := newPoint(2, 0)
+
+	tree := new(2, 1, p1, p2, p3, p4)
+
+	entries := tree.GetRange(newQuery(0, 4, 0, 4))
+
+	checkEntries(
+		t, entries,
+		newCoordinate(0, 0),
+		newCoordinate(1, 1),
+		newCoordinate(1, 3),
+		newCoordinate(2, 0),
+	)
+
+	if tree.numChildren != 4 {
+		t.Errorf(`Expected num children: %d, received: %d`, 4, tree.numChildren)
+	}
+
+	checkNumChildren(t, tree.root, 3)
+	checkNumChildren(t, tree.root.right, 2)
+}
+
+func TestRebalanceSingleDimension(t *testing.T) {
+	p1 := newPoint(1, 0)
+	p2 := newPoint(2, 0)
+	p3 := newPoint(3, 0)
+	p4 := newPoint(4, 0)
+
+	tree := New(2)
+
+	tree.Insert(p1)
+	tree.Insert(p2)
+	tree.Insert(p3)
+	tree.Insert(p4)
+
+	checkNumChildren(t, tree.root.right.right.right, 0)
+	tree.root.rebalance(tree)
+
+	entries := tree.GetRange(newQuery(0, 5, 0, 5))
+
+	checkEntries(
+		t, entries,
+		newCoordinate(1, 0),
+		newCoordinate(2, 0),
+		newCoordinate(3, 0),
+		newCoordinate(4, 0),
+	)
+
+	checkNode(t, tree.root, newCoordinate(3, 0))
+}
+
+func TestRebalanceSecondDimension(t *testing.T) {
+	p1 := newPoint(0, 1)
+	p2 := newPoint(0, 2)
+	p3 := newPoint(0, 3)
+	p4 := newPoint(0, 4)
+
+	tree := New(2)
+
+	tree.Insert(p1)
+	tree.Insert(p2)
+	tree.Insert(p3)
+	tree.Insert(p4)
+
+	tree = tree.root.rt
+	checkNumChildren(t, tree.root.right.right.right, 0)
+
+	tree.rebalance()
+
+	entries := tree.GetRange(newQuery(0, 5, 0, 5))
+
+	checkEntries(
+		t, entries,
+		newCoordinate(0, 1),
+		newCoordinate(0, 2),
+		newCoordinate(0, 3),
+		newCoordinate(0, 4),
+	)
+
+	checkNode(t, tree.root, newCoordinate(0, 3))
 }
