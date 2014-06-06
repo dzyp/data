@@ -22,13 +22,8 @@ func (self *point) MaxDimensions() int {
 }
 
 func (self *point) EqualAtDimension(entry r.Entry, dimension int) bool {
-	for i := 0; i < dimension; i++ {
-		if self.coordinates[i] != entry.GetDimensionalValue(i+1) {
-			return false
-		}
-	}
-
-	return true
+	return self.GetDimensionalValue(dimension) ==
+		entry.GetDimensionalValue(dimension)
 }
 
 func (self *point) LessThan(entry r.Entry, dimension int) bool {
@@ -37,6 +32,16 @@ func (self *point) LessThan(entry r.Entry, dimension int) bool {
 
 func (self *point) String() string {
 	return fmt.Sprintf(`X: %d, Y: %d`, self.coordinates[0], self.coordinates[1])
+}
+
+func (self *point) Less(other r.Entry, dimension int) bool {
+	for i := self.MaxDimensions(); i >= dimension; i-- {
+		if other.LessThan(self, i) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func newPoint(x, y int) *point {
@@ -414,4 +419,25 @@ func TestRemoveAllSecondDimensionNodes(t *testing.T) {
 	if tree.root != nil {
 		t.Errorf(`Expected nil root, received: %+v`, tree.root)
 	}
+}
+
+func TestFetchAll(t *testing.T) {
+	tree := New(2)
+
+	p1 := newPoint(0, 0)
+	p2 := newPoint(0, 1)
+	p3 := newPoint(1, 1)
+	p4 := newPoint(1, 2)
+
+	tree.Insert(p1, p2, p3, p4)
+
+	entries := tree.All()
+
+	checkEntries(
+		t, entries,
+		newCoordinate(0, 0),
+		newCoordinate(0, 1),
+		newCoordinate(1, 1),
+		newCoordinate(1, 2),
+	)
 }

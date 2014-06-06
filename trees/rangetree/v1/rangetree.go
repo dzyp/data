@@ -1,11 +1,14 @@
 package v1
 
 import (
+	"log"
+
 	r "github.com/dzyp/data/trees/rangetree"
 )
 
 var (
 	REBALANCE_RATIO float64 = .3 // performance tuning will be required to change this
+	// .5 would be perfectly balanced
 )
 
 type node struct {
@@ -17,6 +20,14 @@ type node struct {
 	rt          *tree
 }
 
+/*
+func newNode(tree *tree, entries ...r.Entry) *node {
+	if len(entries) == 0 {
+		return nil
+	}
+
+}*/
+
 type queryResult struct {
 	entries []r.Entry
 	index   int
@@ -25,6 +36,10 @@ type queryResult struct {
 func (self *queryResult) addEntry(entry r.Entry) {
 	self.entries[self.index] = entry
 	self.index++
+}
+
+func (self *queryResult) results() []r.Entry {
+	return self.entries[0:self.index]
 }
 
 func newResult(numChildren int) *queryResult {
@@ -37,6 +52,26 @@ func (self *node) isLeaf() bool {
 	return self.left == nil
 }
 
+func (self *node) isLastDimension() bool {
+	return self.rt == nil
+}
+
+func (self *node) needsRebalancing() bool {
+	if self.isLeaf() {
+		return false
+	}
+
+	total := float64(self.left.numChildren + self.right.numChildren)
+
+	if float64(self.left.numChildren)/total < REBALANCE_RATIO {
+		return true
+	} else if float64(self.right.numChildren)/total < REBALANCE_RATIO {
+		return true
+	}
+
+	return false
+}
+
 func (self *node) sibling() *node {
 	if self.isRoot() {
 		return nil
@@ -47,6 +82,21 @@ func (self *node) sibling() *node {
 	} else {
 		return self.parent.right
 	}
+}
+
+func (self *node) all(results *queryResult) {
+	if self.isLeaf() {
+		if self.isLastDimension() {
+			results.addEntry(self.value)
+		} else {
+			self.rt.all(results)
+		}
+
+		return
+	}
+
+	self.left.all(results)
+	self.right.all(results)
 }
 
 func (self *node) getRange(query r.Query, dimension int, results *queryResult, left, right bool) {
@@ -109,6 +159,27 @@ func (self *node) flatten(query r.Query, dimension int, results *queryResult) {
 	self.left.flatten(query, dimension, results)
 	self.right.flatten(query, dimension, results)
 }
+
+/*
+func (self *node) rebalance(tree *tree) {
+	if self.isLeaf() { // i can't be rebalanced
+		if self.rt == nil { // i am last dimension
+			return
+		} else {
+			return self.rt.rebalance()
+		}
+	}
+
+	if self.needsRebalancing() {
+		results := newResult(tree.numChildren)
+		self.left.all(results)
+		self.right.all(results)
+
+	} else {
+		self.left.rebalance(tree)
+		self.right.rebalance(tree)
+	}
+}*/
 
 /*
 returns the inserted entry, returns nil if nothing was inserted
@@ -352,6 +423,32 @@ func (self *tree) remove(entry r.Entry) r.Entry {
 	return entry
 }
 
+/*
+func (self *tree) rebalance() {
+	if self.root == nil {
+		return
+	}
+
+	self.root.rebalance(self.dimension)
+}*/
+
+func (self *tree) all(results *queryResult) {
+	if self.root == nil {
+		return
+	}
+
+	self.root.all(results)
+}
+
+func (self *tree) All() []r.Entry {
+	results := newResult(self.numChildren)
+	self.all(results)
+
+	log.Printf(`result: %+v`, results)
+
+	return results.entries[0:results.index]
+}
+
 func (self *tree) Remove(entries ...r.Entry) {
 	for _, entry := range entries {
 		self.remove(entry)
@@ -425,16 +522,13 @@ func (self *tree) Clear() {
 	self.root = nil
 }
 
-func new(maxDimensions, dimension int) *tree {
+func new(maxDimensions, dimension int, entries ...r.Entry) *tree {
 	return &tree{
 		maxDimensions: maxDimensions,
 		dimension:     dimension,
 	}
 }
 
-func New(maxDimensions int) *tree {
-	return &tree{
-		dimension:     1,
-		maxDimensions: maxDimensions,
-	}
+func New(maxDimensions int, entries ...r.Entry) *tree {
+	return new(maxDimensions, 1, entries...)
 }

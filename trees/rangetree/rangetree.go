@@ -18,6 +18,11 @@ type Entry interface {
 		Returns a value indicating relationship at the given dimension
 	*/
 	LessThan(entry Entry, dimension int) bool
+	/*
+		Returns a bool to be used by sort, this should include an equality
+		check at every dimension until the and including the dimension specified
+	*/
+	Less(entry Entry, dimension int) bool
 }
 
 type Bounds interface {
