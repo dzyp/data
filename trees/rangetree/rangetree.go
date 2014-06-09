@@ -48,4 +48,5 @@ type RangeTree interface {
 	Copy() RangeTree
 	Clear()
 	Len() int
+	All() []Entry
 }

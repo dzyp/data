@@ -250,7 +250,8 @@ func (self *node) insert(entry r.Entry, dimension int) r.Entry {
 
 			return entry
 		} else if entry.EqualAtDimension(self.value, dimension) {
-			if self.rt == nil { // duplicate :(
+			if self.rt == nil { // duplicate
+				self.value = entry
 				return nil
 			}
 
@@ -395,53 +396,6 @@ func (self *node) remove(tree *tree, entry r.Entry) r.Entry {
 
 	return entry
 }
-
-/*
-func (self *node) needsRebalancing() bool {
-	if self.isLeaf() {
-		return false
-	}
-
-	return float64(self.left.numChildren)/float64(self.numChildren) < REBALANCE_RATIO ||
-		float64(self.right.numChildren)/float64(self.numChildren) < REBALANCE_RATIO
-}
-*/
-/*
-func (self *node) rebalance(tree *tree) {
-	var n *node
-	if self.isLeaf() {
-		if self.parent == nil {
-			return
-		}
-
-		n = self.parent
-	} else {
-		n = self
-	}
-	for n != nil {
-		if n.parent != nil && n.parent.needsRebalancing() { // we don't want to duplicate rebalances
-			n = n.parent
-			continue
-		} else if n.needsRebalancing() {
-			result := newResult(n.numChildren)
-			n.flatten(result)
-			newNode := newNode(result.ints, n.parent)
-			if n.parent == nil { //rebalanced at root
-				tree.root = newNode
-			} else {
-				if n.parent.left == n {
-					n.parent.left = newNode
-				} else {
-					n.parent.right = newNode
-				}
-			}
-			return
-		} else {
-			n = n.parent
-		}
-	}
-}
-*/
 
 type tree struct {
 	root          *node
