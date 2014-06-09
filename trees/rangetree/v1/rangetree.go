@@ -496,6 +496,10 @@ func (self *tree) Remove(entries ...r.Entry) {
 	}
 }
 
+func (self *tree) Len() int {
+	return self.numChildren
+}
+
 func (self *tree) getRange(query r.Query, results *queryResult) {
 	if self.root == nil {
 		return

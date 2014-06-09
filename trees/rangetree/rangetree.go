@@ -47,4 +47,5 @@ type RangeTree interface {
 	Insert(entries ...Entry)
 	Copy() RangeTree
 	Clear()
+	Len() int
 }
