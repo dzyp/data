@@ -299,7 +299,7 @@ func (self *node) copy() *node {
 	}
 
 	if self.rt != nil {
-		newNode.rt = self.rt.Copy()
+		newNode.rt = self.rt.copy()
 	}
 
 	if self.isLeaf() {
@@ -545,7 +545,7 @@ func (self *tree) Insert(values ...r.Entry) {
 	}
 }
 
-func (self *tree) Copy() *tree {
+func (self *tree) copy() *tree {
 	cp := &tree{
 		dimension:     self.dimension,
 		maxDimensions: self.maxDimensions,
@@ -557,6 +557,10 @@ func (self *tree) Copy() *tree {
 
 	cp.root = self.root.copy()
 	return cp
+}
+
+func (self *tree) Copy() r.RangeTree {
+	return self.copy()
 }
 
 func (self *tree) Clear() {
