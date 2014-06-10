@@ -11,14 +11,6 @@ type Entry interface {
 	*/
 	MaxDimensions() int
 	/*
-		Returns a bool indicating whether values are equal up to the given dimension
-	*/
-	EqualAtDimension(entry Entry, dimension int) bool
-	/*
-		Returns a value indicating relationship at the given dimension
-	*/
-	LessThan(entry Entry, dimension int) bool
-	/*
 		Returns a bool to be used by sort, this should include an equality
 		check at every dimension until the and including the dimension specified
 	*/

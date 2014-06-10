@@ -6,27 +6,26 @@ import (
 	r "github.com/dzyp/data/trees/rangetree"
 )
 
-func checkSortedList(t *testing.T, entries []r.Entry, expected ...*coordinate) {
+func checkSortedList(t *testing.T, entries []int, expected ...int) {
 	if len(entries) != len(expected) {
 		t.Errorf(`Expected len: %d, received: %d`, len(expected), len(entries))
 		return // don't want to panic
 	}
 
 	for i, entry := range entries {
-		p := entry.(*point)
 		coord := expected[i]
 
-		if p.coordinates[0] != coord.x {
-			t.Errorf(`Expected x: %d, received: %d`, coord.x, p.coordinates[0])
+		if entry != coord {
+			t.Errorf(`Expected x: %d, received: %d`, coord, entry)
 		}
 
-		if p.coordinates[1] != coord.y {
-			t.Errorf(`Expected y: %d, received: %d`, coord.y, p.coordinates[1])
+		if entry != coord {
+			t.Errorf(`Expected y: %d, received: %d`, coord, entry)
 		}
 	}
 }
 
-func TestSortOnFirstDimension(t *testing.T) {
+func TestEntriesSortOnFirstDimension(t *testing.T) {
 	entries := []r.Entry{
 		newPoint(2, 0),
 		newPoint(4, 0),
@@ -45,7 +44,7 @@ func TestSortOnFirstDimension(t *testing.T) {
 	)
 }
 
-func TestSortOnSecondDimension(t *testing.T) {
+func TestEntriesSortOnSecondDimension(t *testing.T) {
 	entries := []r.Entry{
 		newPoint(0, 3),
 		newPoint(0, 1),
@@ -76,13 +75,14 @@ func TestEntriesWrapperFirstDimension(t *testing.T) {
 
 	sorted := ew.getSortedValues()
 
-	checkSortedList(t, sorted, newCoordinate(0, 0), newCoordinate(1, 0))
+	checkSortedList(t, sorted, 0, 1)
 
-	entries = ew.getEntriesAtValue(sorted[0])
-	checkEntries(t, entries, newCoordinate(0, 0), newCoordinate(0, 1))
+	/*
+		entries = ew.getEntriesAtValue(sorted[0])
+		checkEntries(t, entries, newCoordinate(0, 0), newCoordinate(0, 1))
 
-	entries = ew.getEntriesAtValue(sorted[1])
-	checkEntries(t, entries, newCoordinate(1, 0), newCoordinate(1, 1))
+		entries = ew.getEntriesAtValue(sorted[1])
+		checkEntries(t, entries, newCoordinate(1, 0), newCoordinate(1, 1))*/
 }
 
 func TestEntriesWrapperOneValue(t *testing.T) {
@@ -93,13 +93,13 @@ func TestEntriesWrapperOneValue(t *testing.T) {
 	ew := newEntries(entries, 1, true)
 
 	sorted := ew.getSortedValues()
-	checkSortedList(t, sorted, newCoordinate(0, 1))
+	checkSortedList(t, sorted, 0)
 
 	entries = ew.getEntriesAtValue(sorted[0])
 	checkEntries(t, entries, newCoordinate(0, 1))
 }
 
-func TestWrapperSplit(t *testing.T) {
+func TestEntriesWrapperSplit(t *testing.T) {
 	entries := []r.Entry{
 		newPoint(0, 1),
 		newPoint(1, 1),
@@ -110,9 +110,9 @@ func TestWrapperSplit(t *testing.T) {
 	ew := newEntries(entries, 1, true)
 	entry := ew.median()
 
-	checkEntries(t, []r.Entry{entry}, newCoordinate(1, 0))
+	checkSortedList(t, []int{entry}, 1)
 
-	left, right := ew.split()
+	left, right := ew.split(-1)
 
 	if len(left.groups) != 1 {
 		t.Errorf(`Expected len: %d, received: %d`, 1, len(left.groups))

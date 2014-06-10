@@ -37,11 +37,11 @@ func (self *entrySorter) Less(i, j int) bool {
 
 type entriesWrapper struct {
 	entries                 []r.Entry
-	groups                  map[r.Entry][]r.Entry
-	sortedDimensionalValues []r.Entry
+	groups                  map[int][]r.Entry
+	sortedDimensionalValues []int
 }
 
-func (self *entriesWrapper) getEntriesAtValue(value r.Entry) []r.Entry {
+func (self *entriesWrapper) getEntriesAtValue(value int) []r.Entry {
 	if entries, ok := self.groups[value]; ok {
 		return entries
 	}
@@ -49,15 +49,15 @@ func (self *entriesWrapper) getEntriesAtValue(value r.Entry) []r.Entry {
 	return nil
 }
 
-func (self *entriesWrapper) getSortedValues() []r.Entry {
+func (self *entriesWrapper) find(value int) int {
+	return sort.SearchInts(self.sortedDimensionalValues, value)
+}
+
+func (self *entriesWrapper) getSortedValues() []int {
 	return self.sortedDimensionalValues
 }
 
-func (self *entriesWrapper) median() r.Entry {
-	if self.sortedDimensionalValues == nil {
-		return nil
-	}
-
+func (self *entriesWrapper) median() int {
 	return self.sortedDimensionalValues[len(self.sortedDimensionalValues)/2]
 }
 
@@ -69,21 +69,34 @@ func (self *entriesWrapper) isLastValue() bool {
 	return len(self.groups) <= 1
 }
 
+func (self *entriesWrapper) lastValue() r.Entry {
+	if !self.isLastValue() {
+		return nil
+	}
+
+	key := self.sortedDimensionalValues[0]
+
+	return self.groups[key][0]
+}
+
 /*
 splits the entity wrapper into the left and right halves
 */
-func (self *entriesWrapper) split() (*entriesWrapper, *entriesWrapper) {
+func (self *entriesWrapper) split(index int) (*entriesWrapper, *entriesWrapper) {
 	if self.sortedDimensionalValues == nil {
 		return nil, nil
 	}
 
-	median := len(self.sortedDimensionalValues) / 2
-	leftSortedList := self.sortedDimensionalValues[0:median]
-	rightSortedList :=
-		self.sortedDimensionalValues[median:len(self.sortedDimensionalValues)]
+	if index == -1 {
+		index = len(self.sortedDimensionalValues) / 2
+	}
 
-	leftGroup := make(map[r.Entry][]r.Entry)
-	rightGroup := make(map[r.Entry][]r.Entry)
+	leftSortedList := self.sortedDimensionalValues[0:index]
+	rightSortedList :=
+		self.sortedDimensionalValues[index:len(self.sortedDimensionalValues)]
+
+	leftGroup := make(map[int][]r.Entry)
+	rightGroup := make(map[int][]r.Entry)
 
 	midPoint := 0
 
@@ -106,15 +119,21 @@ func (self *entriesWrapper) split() (*entriesWrapper, *entriesWrapper) {
 		rightGroup[entry] = entries
 	}
 
-	return &entriesWrapper{
-			entries:                 self.entries[0:midPoint],
-			groups:                  leftGroup,
-			sortedDimensionalValues: leftSortedList,
-		}, &entriesWrapper{
-			entries:                 self.entries[midPoint:len(self.entries)],
-			groups:                  rightGroup,
-			sortedDimensionalValues: rightSortedList,
-		}
+	left, right := &entriesWrapper{
+		groups:                  leftGroup,
+		sortedDimensionalValues: leftSortedList,
+	}, &entriesWrapper{
+		groups:                  rightGroup,
+		sortedDimensionalValues: rightSortedList,
+	}
+
+	left.entries = make([]r.Entry, midPoint)
+	copy(left.entries, self.entries[0:midPoint])
+
+	right.entries = make([]r.Entry, len(self.entries)-midPoint)
+	copy(right.entries, self.entries[midPoint:len(self.entries)])
+
+	return left, right
 }
 
 func (self *entriesWrapper) len() int {
@@ -140,21 +159,22 @@ func newEntries(entries []r.Entry, dimension int, sort bool) *entriesWrapper {
 		byDimension(dimension).Sort(entries)
 	}
 
-	sortedDimensionalValues := make([]r.Entry, len(entries))
-	lastSeen := entries[0]
-	groups := make(map[r.Entry][]r.Entry)
+	sortedDimensionalValues := make([]int, len(entries))
+	lastSeen := entries[0].GetDimensionalValue(dimension)
+	groups := make(map[int][]r.Entry)
 	lastIndex := 0
 	var sortedIndex int
 
 	for i := 0; i < len(entries); i++ {
-		if entries[i].EqualAtDimension(lastSeen, dimension) {
+		if entries[i].GetDimensionalValue(dimension) == lastSeen {
 			continue
 		}
+
 		sortedDimensionalValues[sortedIndex] = lastSeen
 		groups[lastSeen] = entries[lastIndex:i]
 
 		lastIndex = i
-		lastSeen = entries[i]
+		lastSeen = entries[i].GetDimensionalValue(dimension)
 		sortedIndex++
 	}
 

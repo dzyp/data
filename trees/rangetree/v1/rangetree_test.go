@@ -29,11 +29,6 @@ func (self *point) MaxDimensions() int {
 	return len(self.coordinates)
 }
 
-func (self *point) EqualAtDimension(entry r.Entry, dimension int) bool {
-	return self.GetDimensionalValue(dimension) ==
-		entry.GetDimensionalValue(dimension)
-}
-
 func (self *point) LessThan(entry r.Entry, dimension int) bool {
 	return self.coordinates[dimension-1] < entry.GetDimensionalValue(dimension)
 }
@@ -43,13 +38,22 @@ func (self *point) String() string {
 }
 
 func (self *point) Less(other r.Entry, dimension int) bool {
-	for i := self.MaxDimensions(); i >= dimension; i-- {
-		if other.LessThan(self, i) {
+	var selfValue int
+	var otherValue int
+
+	for i := 1; i <= self.MaxDimensions(); i++ {
+		selfValue = self.GetDimensionalValue(i)
+		otherValue = other.GetDimensionalValue(i)
+		if selfValue > otherValue {
 			return false
+		} else if selfValue == otherValue {
+			continue
+		} else {
+			return true
 		}
 	}
 
-	return true
+	return false
 }
 
 func newPoint(x, y int) *point {
@@ -100,7 +104,11 @@ func newCoordinate(x, y int) *coordinate {
 }
 
 func checkCoordinates(t *testing.T, entry r.Entry, x, y int) {
-	p := entry.(*point)
+	p, ok := entry.(*point)
+	if !ok {
+		t.Errorf(`Entry does not exist.`)
+		return
+	}
 
 	if p.coordinates[0] != x {
 		t.Errorf(`X coordinate expected: %d, received: %d`, x, p.coordinates[0])
@@ -146,7 +154,13 @@ func checkEntries(t *testing.T, entries []r.Entry, expected ...*coordinate) {
 }
 
 func checkNode(t *testing.T, n *node, c *coordinate) {
-	checkEntries(t, []r.Entry{n.value}, c)
+	checkEntries(t, []r.Entry{n.entry}, c)
+}
+
+func checkValue(t *testing.T, n *node, value int) {
+	if n.value != value {
+		t.Errorf(`Expected value: %d, received: %d`, value, n.value)
+	}
 }
 
 func TestInsertTwoPoints(t *testing.T) {
@@ -155,11 +169,13 @@ func TestInsertTwoPoints(t *testing.T) {
 
 	tree := New(2)
 
-	tree.Insert(p1, p2)
+	tree.Insert(p1)
+	tree.Insert(p2)
 
-	checkCoordinates(t, tree.root.value, 1, 1)
-	checkCoordinates(t, tree.root.left.value, 0, 0)
-	checkCoordinates(t, tree.root.right.value, 1, 1)
+	checkValue(t, tree.root.right, 1)
+	checkValue(t, tree.root.left, 0)
+	checkValue(t, tree.root.left.rt.root, 0)
+	checkValue(t, tree.root.right.rt.root, 1)
 	checkNumChildren(t, tree.root, 2)
 	checkNumChildren(t, tree.root.right, 0)
 	checkNumChildren(t, tree.root.left, 0)
@@ -201,7 +217,9 @@ func TestQueryAfterEditLow(t *testing.T) {
 	p = newPoint(1, 1)
 	tree.Insert(p)
 
-	checkCoordinates(t, tree.root.left.value, 1, 1)
+	checkValue(t, tree.root, 5)
+	checkValue(t, tree.root.right, 5)
+	checkValue(t, tree.root.left, 1)
 
 	entries = tree.GetRange(newQuery(0, 10, 0, 10))
 
@@ -218,7 +236,9 @@ func TestQueryAfterEditHigh(t *testing.T) {
 	p = newPoint(9, 9)
 	tree.Insert(p)
 
-	checkCoordinates(t, tree.root.right.value, 9, 9)
+	checkValue(t, tree.root, 9)
+	checkValue(t, tree.root.left, 5)
+	checkValue(t, tree.root.right, 9)
 
 	entries := tree.GetRange(newQuery(0, 10, 0, 10))
 
@@ -234,7 +254,13 @@ func TestQueryMultipleLevels(t *testing.T) {
 
 	tree := New(2)
 
-	tree.Insert(p1, p2, p3, p4, p5)
+	//tree.Insert(p1, p2, p3) //, p4, p5)
+
+	tree.Insert(p1)
+	tree.Insert(p2)
+	tree.Insert(p3)
+	tree.Insert(p4)
+	tree.Insert(p5)
 
 	entries := tree.GetRange(newQuery(1, 10, 1, 10))
 
@@ -339,6 +365,8 @@ func TestLargeDenseMatrix(t *testing.T) {
 			index++
 		}
 	}
+
+	//tree.rebalance()
 
 	points = points[0:index]
 
@@ -538,7 +566,7 @@ func TestRebalanceSingleDimension(t *testing.T) {
 		newCoordinate(4, 0),
 	)
 
-	checkNode(t, tree.root, newCoordinate(3, 0))
+	checkValue(t, tree.root, 3)
 }
 
 func TestRebalanceSecondDimension(t *testing.T) {
@@ -555,7 +583,6 @@ func TestRebalanceSecondDimension(t *testing.T) {
 	tree.Insert(p4)
 
 	tree = tree.root.rt
-	checkNumChildren(t, tree.root.right.right.right, 0)
 
 	tree.rebalance()
 
@@ -569,5 +596,210 @@ func TestRebalanceSecondDimension(t *testing.T) {
 		newCoordinate(0, 4),
 	)
 
-	checkNode(t, tree.root, newCoordinate(0, 3))
+	checkValue(t, tree.root, 3)
+}
+
+func TestInsertOverwritesRoot(t *testing.T) {
+	p1 := newPoint(0, 0)
+
+	tree := New(2)
+
+	tree.Insert(p1)
+
+	p1 = newPoint(0, 0)
+
+	tree.Insert(p1)
+
+	if tree.root.rt.root.entry != p1 {
+		t.Errorf(
+			`Expected entry: %+v, received: %+v`, p1, tree.root.rt.root.entry,
+		)
+	}
+}
+
+func TestInsertOverwritesRight(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 1)
+
+	tree := New(2)
+
+	tree.Insert(p1, p2)
+
+	p2 = newPoint(1, 1)
+
+	tree.Insert(p2)
+
+	if tree.root.right.rt.root.entry != p2 {
+		t.Errorf(
+			`Expected entry: %+v, received: %+v`,
+			p2, tree.root.right.rt.root.entry,
+		)
+	}
+}
+
+func TestInsertOverwritesLeft(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 1)
+
+	tree := New(2)
+
+	tree.Insert(p1, p2)
+
+	p2 = newPoint(0, 0)
+
+	tree.Insert(p2)
+
+	if tree.root.left.rt.root.entry != p2 {
+		t.Errorf(
+			`Expected entry: %+v, received: %+v`,
+			p2, tree.root.left.rt.root.entry,
+		)
+	}
+}
+
+func TestInsertMultipleOverwrites(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 1)
+
+	tree := New(2)
+
+	tree.Insert(p1, p2)
+
+	p1 = newPoint(0, 0)
+	p2 = newPoint(1, 1)
+
+	tree.Insert(p1, p2)
+
+	if tree.root.left.rt.root.entry != p1 {
+		t.Errorf(
+			`Expected entry: %+v, received: %+v`,
+			p2, tree.root.left.rt.root.entry,
+		)
+	}
+
+	if tree.root.right.rt.root.entry != p2 {
+		t.Errorf(
+			`Expected entry: %+v, received: %+v`,
+			p2, tree.root.right.rt.root.entry,
+		)
+	}
+}
+
+func TestInsertWideRanges(t *testing.T) {
+	p1 := newPoint(0, 3)
+	p2 := newPoint(1, 0)
+
+	tree := New(2)
+
+	tree.Insert(p1)
+	tree.Insert(p2)
+
+	entries := tree.GetRange(newQuery(0, 4, 0, 4))
+
+	checkEntries(t, entries, newCoordinate(0, 3), newCoordinate(1, 0))
+}
+
+func BenchmarkFirstDimensionRange(b *testing.B) {
+	log.Printf(`N: %d`, b.N)
+	numItems := 10
+	points := make([]r.Entry, numItems)
+	for i := 0; i < numItems; i++ {
+		points[i] = newPoint(i, 0)
+	}
+
+	tree := New(2, points...)
+
+	var results []r.Entry
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		results = tree.GetRange(newQuery(0, numItems, 0, numItems))
+	}
+
+	if len(points) != len(results) {
+		b.Errorf(`Expected len: %d, received: %d`, len(points), len(results))
+	}
+}
+
+func BenchmarkCheckSecondDimensionRange(b *testing.B) {
+	numItems := 20000
+
+	tree := New(2)
+
+	points := make([]r.Entry, numItems)
+
+	for i := 0; i < numItems; i++ {
+		points[i] = newPoint(0, i)
+	}
+
+	tree.Insert(points...)
+
+	tree.Insert(newPoint(1, 0))
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tree.GetRange(newQuery(0, numItems, 0, numItems))
+	}
+}
+
+func BenchmarkInsertCells(b *testing.B) {
+	numItems := 100000
+
+	points := make([]r.Entry, numItems)
+
+	for i := 0; i < numItems; i++ {
+		points[i] = newPoint(0, i)
+	}
+
+	var t *tree
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		t = New(2)
+		t.Insert(points...)
+	}
+
+	b.StopTimer()
+
+	entries := t.GetRange(newQuery(0, numItems, 0, numItems))
+
+	if len(entries) != numItems {
+		b.Errorf(`Expected num items: %d, received: %d`, numItems, len(entries))
+	}
+}
+
+func BenchmarkEditCells(b *testing.B) {
+	numItems := 100000
+
+	points := make([]r.Entry, numItems)
+
+	for i := 0; i < numItems; i++ {
+		points[i] = newPoint(0, i)
+	}
+
+	t := New(2)
+
+	t.Insert(points...)
+
+	points = make([]r.Entry, 100)
+
+	for i := 0; i < 100; i++ {
+		points[i] = newPoint(1, i)
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		t.Insert(points...)
+	}
+
+	b.StopTimer()
+
+	entries := t.GetRange(newQuery(0, numItems, 0, numItems))
+
+	if len(entries) != numItems+100 {
+		b.Errorf(
+			`Expected num items: %d, received: %d`, numItems+100, len(entries),
+		)
+	}
 }

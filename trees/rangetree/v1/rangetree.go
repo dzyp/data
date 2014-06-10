@@ -13,7 +13,8 @@ type node struct {
 	left        *node
 	right       *node
 	parent      *node
-	value       r.Entry
+	entry       r.Entry
+	value       int
 	numChildren int
 	rt          *tree
 }
@@ -24,8 +25,10 @@ func newNode(tree *tree, entries *entriesWrapper) *node {
 	}
 
 	if tree.isLastDimension() && entries.isLastValue() {
+		entry := entries.lastValue()
 		return &node{
-			value: entries.median(),
+			entry: entry,
+			value: entry.GetDimensionalValue(tree.dimension),
 		}
 	}
 
@@ -39,7 +42,7 @@ func newNode(tree *tree, entries *entriesWrapper) *node {
 			),
 		}
 	}
-	left, right := entries.split()
+	left, right := entries.split(-1)
 
 	n := &node{
 		left:        newNode(tree, left),
@@ -113,7 +116,7 @@ func (self *node) sibling() *node {
 func (self *node) all(results *queryResult) {
 	if self.isLeaf() {
 		if self.isLastDimension() {
-			results.addEntry(self.value)
+			results.addEntry(self.entry)
 		} else {
 			self.rt.all(results)
 		}
@@ -127,11 +130,10 @@ func (self *node) all(results *queryResult) {
 
 func (self *node) getRange(query r.Query, dimension int, results *queryResult, left, right bool) {
 	bounds := query.GetDimensionalBounds(dimension)
-	value := self.value.GetDimensionalValue(dimension)
 	if self.isLeaf() {
-		if value >= bounds.Low() && value < bounds.High() {
+		if self.value >= bounds.Low() && self.value < bounds.High() {
 			if self.rt == nil { // i am a true leaf, last dimension
-				results.addEntry(self.value)
+				results.addEntry(self.entry)
 				return
 			} else { // i am not the last dimension
 				self.rt.getRange(query, results)
@@ -142,20 +144,20 @@ func (self *node) getRange(query r.Query, dimension int, results *queryResult, l
 		}
 	}
 
-	if bounds.High() <= value {
+	if bounds.High() <= self.value {
 		self.left.getRange(query, dimension, results, left, right) //left right should be false here
 		return
 	}
 
-	if bounds.Low() > value {
+	if bounds.Low() > self.value {
 		self.right.getRange(query, dimension, results, left, right) //left right should be false here
 		return
 	}
 
-	if bounds.Low() <= value && left { // we can safely grab all of right here
+	if bounds.Low() <= self.value && left { // we can safely grab all of right here
 		self.left.getRange(query, dimension, results, true, false)
 		self.right.flatten(query, dimension, results)
-	} else if bounds.High() > value && right {
+	} else if bounds.High() > self.value && right {
 		self.left.flatten(query, dimension, results)
 		self.right.getRange(query, dimension, results, false, true)
 	} else {
@@ -175,7 +177,7 @@ func (self *node) grandParent() *node {
 func (self *node) flatten(query r.Query, dimension int, results *queryResult) {
 	if self.isLeaf() {
 		if self.rt == nil { // i am a true leaf
-			results.addEntry(self.value)
+			results.addEntry(self.entry)
 		} else {
 			self.rt.getRange(query, results)
 		}
@@ -192,6 +194,7 @@ func (self *node) rebalance(tree *tree) {
 			return
 		} else {
 			self.rt.rebalance()
+			return
 		}
 	}
 
@@ -224,73 +227,102 @@ func (self *node) rebalance(tree *tree) {
 /*
 returns the inserted entry, returns nil if nothing was inserted
 */
-func (self *node) insert(entry r.Entry, dimension int) r.Entry {
+func (self *node) insert(tree *tree, entries *entriesWrapper) {
+	if len(entries.entries) == 0 {
+		return
+	}
+
 	if self.isLeaf() {
-		highestDimension := false
-		if self.rt == nil {
-			highestDimension = true
-		}
-		if self.value.LessThan(entry, dimension) {
-			newLeftNode := &node{}
-			newRightNode := &node{}
-			newRightNode.value = entry
-			newLeftNode.value = self.value
-			newLeftNode.rt = self.rt
+		median := entries.median()
+
+		if median == self.value && len(entries.sortedDimensionalValues) == 1 && !tree.isLastDimension() {
+			self.rt.insert(entries.getEntriesAtValue(self.value)...)
+		} else if median == self.value { // we now go to the right
+			if !tree.isLastDimension() {
+				self.rt.insert(entries.getEntriesAtValue(self.value)...) // insert entries
+			}
+
+			left, right := entries.split(-1)
+
+			leftN := newNode(tree, left)
+			if leftN == nil { // no values left, we need to take the new value
+				if tree.isLastDimension() {
+					self.entry = entries.lastValue()
+				} else {
+					self.rt.insert(entries.getEntriesAtValue(self.value)...)
+				}
+
+				return
+			}
+			leftN.parent = self
+			self.left = leftN
+
+			rightN := &node{
+				value:  self.value,
+				rt:     self.rt,
+				parent: self,
+			}
+
+			rightN.entry = self.entry
+			self.entry = nil
+
+			self.right = rightN
 			self.rt = nil
-			newLeftNode.parent = self
-			newRightNode.parent = self
-			self.left = newLeftNode
-			self.right = newRightNode
-			self.value = entry
+			self.right.insert(tree, right)
 			self.numChildren = 2
-			if !highestDimension {
-				self.right.rt = new(self.left.rt.maxDimensions, dimension)
-				return self.right.rt.insert(entry)
+		} else if median > self.value {
+			leftN := &node{
+				value:  self.value,
+				rt:     self.rt,
+				parent: self,
+				entry:  self.entry,
 			}
 
-			return entry
-		} else if entry.EqualAtDimension(self.value, dimension) {
-			if self.rt == nil { // duplicate
-				self.value = entry
-				return nil
-			}
+			self.entry = nil
 
-			return self.rt.insert(entry)
-		} else {
-			newLeftNode := &node{}
-			newRightNode := &node{}
-			newRightNode.value = self.value
-			newRightNode.rt = self.rt
+			self.left = leftN
 			self.rt = nil
-			newLeftNode.parent = self
-			newRightNode.parent = self
-			newLeftNode.value = entry
-			self.left = newLeftNode
-			self.right = newRightNode
+			self.value = median
+
+			left, right := entries.split(-1)
+
+			rightN := newNode(tree, right)
+			rightN.parent = self
+			self.right = rightN
+			self.left.insert(tree, left)
 			self.numChildren = 2
-			if !highestDimension {
-				self.left.rt = new(self.right.rt.maxDimensions, dimension)
-				return self.left.rt.insert(entry)
+		} else if median < self.value {
+			rightN := &node{
+				value:  self.value,
+				rt:     self.rt,
+				parent: self,
 			}
-			return entry
+
+			rightN.entry = self.entry
+			self.entry = nil
+
+			left, right := entries.split(
+				len(entries.sortedDimensionalValues)/2 + 1,
+			)
+
+			self.right = rightN
+			self.rt = nil
+			leftN := newNode(tree, left)
+			self.left = leftN
+			leftN.parent = self
+			self.right.insert(tree, right)
+			self.numChildren = 2
 		}
 
-		return nil
+		return
 	}
 
-	var newEntry r.Entry
+	index := entries.find(self.value)
 
-	if entry.LessThan(self.value, dimension) {
-		newEntry = self.left.insert(entry, dimension)
-	} else {
-		newEntry = self.right.insert(entry, dimension)
-	}
+	left, right := entries.split(index)
 
-	if newEntry != nil {
-		self.numChildren++
-	}
-
-	return newEntry
+	self.left.insert(tree, left)
+	self.right.insert(tree, right)
 }
 
 func (self *node) copy() *node {
@@ -362,7 +394,7 @@ Returns nil if entry wasn't found
 */
 func (self *node) remove(tree *tree, entry r.Entry) r.Entry {
 	if self.isLeaf() {
-		if self.value.EqualAtDimension(entry, tree.dimension) {
+		if self.value == entry.GetDimensionalValue(tree.dimension) {
 			if self.rt == nil { // we are the last dimension
 				self.removeSelf(tree)
 
@@ -384,10 +416,10 @@ func (self *node) remove(tree *tree, entry r.Entry) r.Entry {
 		}
 	}
 
-	if entry.LessThan(self.value, tree.dimension) {
-		entry = self.left.remove(tree, entry)
-	} else {
+	if entry.GetDimensionalValue(tree.dimension) >= self.value {
 		entry = self.right.remove(tree, entry)
+	} else {
+		entry = self.left.remove(tree, entry)
 	}
 
 	if entry != nil {
@@ -473,34 +505,25 @@ func (self *tree) GetRange(query r.Query) []r.Entry {
 	return results.entries[0:results.index]
 }
 
-func (self *tree) insert(value r.Entry) r.Entry {
+func (self *tree) insert(entries ...r.Entry) r.Entry {
+	ew := newEntries(entries, self.dimension, false)
 	if self.root == nil {
-		self.root = &node{
-			value: value,
-		}
-
-		self.numChildren = 1
-
-		if self.dimension < value.MaxDimensions() {
-			self.root.rt = new(self.maxDimensions, self.dimension+1)
-			self.root.rt.insert(value)
-		}
-
-		return value
+		self.root = newNode(self, ew)
+		self.numChildren += len(entries)
+		return nil
 	}
 
-	value = self.root.insert(value, self.dimension)
-	if value != nil {
-		self.numChildren++
-	}
+	self.root.insert(self, ew)
 
-	return value
+	self.numChildren += len(entries)
+
+	return nil
 }
 
 func (self *tree) Insert(values ...r.Entry) {
-	for _, value := range values {
-		self.insert(value)
-	}
+	byDimension(self.dimension).Sort(values)
+
+	self.insert(values...)
 }
 
 func (self *tree) copy() *tree {
