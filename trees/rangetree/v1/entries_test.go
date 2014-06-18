@@ -25,112 +25,31 @@ func checkSortedList(t *testing.T, entries []int, expected ...int) {
 	}
 }
 
-func TestEntriesSortOnFirstDimension(t *testing.T) {
-	entries := []r.Entry{
-		newPoint(2, 0),
-		newPoint(4, 0),
-		newPoint(3, 0),
-		newPoint(1, 0),
+func checkEntries(t *testing.T, entries []r.Entry, expected ...*point) {
+	if len(entries) != len(expected) {
+		t.Errorf(`Expected len: %d, received: %d`, len(expected), len(entries))
 	}
 
-	byDimension(1).Sort(entries)
+	for i, entry := range entries {
+		if entry.GetDimensionalValue(1) != expected[i].x() {
+			t.Errorf(
+				`Expected: %+v, received: %+v`,
+				expected[i].x,
+				entry.GetDimensionalValue(1),
+			)
+		}
 
-	checkEntries(
-		t, entries,
-		newCoordinate(1, 0),
-		newCoordinate(2, 0),
-		newCoordinate(3, 0),
-		newCoordinate(4, 0),
-	)
+		if entry.GetDimensionalValue(2) != expected[i].y() {
+			t.Errorf(
+				`Expected: %+v, received: %+v`,
+				expected[i].y, entry.GetDimensionalValue(2),
+			)
+		}
+	}
 }
 
-func TestEntriesSortOnSecondDimension(t *testing.T) {
-	entries := []r.Entry{
-		newPoint(0, 3),
-		newPoint(0, 1),
-		newPoint(0, 4),
-		newPoint(0, 2),
-	}
-
-	byDimension(2).Sort(entries)
-
-	checkEntries(
-		t, entries,
-		newCoordinate(0, 1),
-		newCoordinate(0, 2),
-		newCoordinate(0, 3),
-		newCoordinate(0, 4),
-	)
-}
-
-func TestEntriesWrapperFirstDimension(t *testing.T) {
-	entries := []r.Entry{
-		newPoint(0, 1),
-		newPoint(1, 0),
-		newPoint(1, 1),
-		newPoint(0, 0),
-	}
-
-	ew := newEntries(entries, 1, true)
-
-	sorted := ew.getSortedValues()
-
-	checkSortedList(t, sorted, 0, 1)
-
-	/*
-		entries = ew.getEntriesAtValue(sorted[0])
-		checkEntries(t, entries, newCoordinate(0, 0), newCoordinate(0, 1))
-
-		entries = ew.getEntriesAtValue(sorted[1])
-		checkEntries(t, entries, newCoordinate(1, 0), newCoordinate(1, 1))*/
-}
-
-func TestEntriesWrapperOneValue(t *testing.T) {
-	entries := []r.Entry{
-		newPoint(0, 1),
-	}
-
-	ew := newEntries(entries, 1, true)
-
-	sorted := ew.getSortedValues()
-	checkSortedList(t, sorted, 0)
-
-	entries = ew.getEntriesAtValue(sorted[0])
-	checkEntries(t, entries, newCoordinate(0, 1))
-}
-
-func TestEntriesWrapperSplit(t *testing.T) {
-	entries := []r.Entry{
-		newPoint(0, 1),
-		newPoint(1, 1),
-		newPoint(0, 0),
-		newPoint(1, 0),
-	}
-
-	ew := newEntries(entries, 1, true)
-	entry := ew.median()
-
-	checkSortedList(t, []int{entry}, 1)
-
-	left, right := ew.split(-1)
-
-	if len(left.groups) != 1 {
-		t.Errorf(`Expected len: %d, received: %d`, 1, len(left.groups))
-	}
-
-	if len(right.groups) != 1 {
-		t.Errorf(`Expected len: %d, received: %d`, 1, len(right.groups))
-	}
-
-	entries = left.getEntriesAtValue(left.median())
-	checkEntries(t, entries, newCoordinate(0, 0), newCoordinate(0, 1))
-	if !left.isLastValue() {
-		t.Errorf(`Expected last value.`)
-	}
-
-	entries = right.getEntriesAtValue(right.median())
-	checkEntries(t, entries, newCoordinate(1, 0), newCoordinate(1, 1))
-	if !right.isLastValue() {
-		t.Errorf(`Expected last value.`)
+func checkLen(t *testing.T, entries []r.Entry, expected int) {
+	if len(entries) != expected {
+		t.Errorf(`Expected len: %d, received: %d`, expected, len(entries))
 	}
 }

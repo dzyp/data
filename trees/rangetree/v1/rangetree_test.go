@@ -29,10 +29,6 @@ func (self *point) MaxDimensions() int {
 	return len(self.coordinates)
 }
 
-func (self *point) LessThan(entry r.Entry, dimension int) bool {
-	return self.coordinates[dimension-1] < entry.GetDimensionalValue(dimension)
-}
-
 func (self *point) String() string {
 	return fmt.Sprintf(`X: %d, Y: %d`, self.coordinates[0], self.coordinates[1])
 }
@@ -103,6 +99,204 @@ func newCoordinate(x, y int) *coordinate {
 	return &coordinate{x, y}
 }
 
+func TestCreateTree(t *testing.T) {
+	tree := newTree(2, 1)
+
+	if tree.maxDimensions != 2 {
+		t.Errorf(
+			`Expected max dimensions: %d, received: %d`, 2, tree.maxDimensions,
+		)
+	}
+
+	if tree.dimension != 1 {
+		t.Errorf(`Expected dimension: %d, received: %d`, 1, tree.dimension)
+	}
+}
+
+func TestInsertSingleValue(t *testing.T) {
+	point := newPoint(0, 0)
+	tree := newTree(2, 1, point)
+
+	if tree.root.value != 0 {
+		t.Errorf(`Expected value: %d, received: %d`, 0, tree.root.value)
+	}
+
+	if tree.root.numChildren != 1 {
+		t.Errorf(
+			`Expected num children: %d, received: %d`, 1, tree.root.numChildren,
+		)
+	}
+
+	if tree.root.p.(*orderedList).nodes[0] != point {
+		t.Errorf(
+			`Expected: %+v, received: %+v`,
+			point,
+			tree.root.p.(*orderedList).nodes[0],
+		)
+	}
+
+	if tree.numChildren != 1 {
+		t.Errorf(`Expected num children: %d, received: %d`, 1, tree.numChildren)
+	}
+
+	log.Printf(`tree.root.p: %+v`, tree.root.p.(*orderedList).nodes)
+}
+
+func TestInsertMultipleValues(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 0)
+	tree := newTree(2, 1, p1, p2)
+
+	if tree.numChildren != 2 {
+		t.Errorf(`Expected numchildren: %d, received: %d`, 2, tree.numChildren)
+	}
+
+	if tree.root.value != 0 {
+		t.Errorf(`Expected value: %d, received: %d`, 0, tree.root.value)
+	}
+
+	if tree.root.left.value != 0 {
+		t.Errorf(`Expected value: %d, received: %d`, 0, tree.root.left.value)
+	}
+
+	if tree.root.right.value != 1 {
+		t.Errorf(`Expected value: %d, received: %d`, 1, tree.root.right.value)
+	}
+
+	if len(tree.root.p.(*orderedList).nodes) != 2 {
+		t.Errorf(
+			`Expected len: %d, received: %d`,
+			2,
+			len(tree.root.p.(*orderedList).nodes),
+		)
+	}
+
+	if len(tree.root.right.p.(*orderedList).nodes) != 1 {
+		t.Errorf(
+			`Expected len: %d, received: %d`,
+			1,
+			len(tree.root.right.p.(*orderedList).nodes),
+		)
+	}
+
+	if len(tree.root.left.p.(*orderedList).nodes) != 1 {
+		t.Errorf(
+			`Expected len: %d, received: %d`,
+			1,
+			len(tree.root.left.p.(*orderedList).nodes),
+		)
+	}
+
+	log.Printf(`NODE: %+v`, tree.root.left.p.(*orderedList).nodes)
+}
+
+func TestInsertMultipleDuplicateValues(t *testing.T) {
+	p1 := newPoint(0, 1)
+	p2 := newPoint(0, 2)
+	p3 := newPoint(0, 3)
+
+	tree := newTree(2, 1, p1, p2, p3)
+
+	if tree.root.numChildren != 3 {
+		t.Errorf(
+			`Expected num children: %d, received: %d`, 3, tree.root.numChildren,
+		)
+	}
+
+	if !tree.root.isLeaf() {
+		t.Errorf(`Root should be leaf.`)
+	}
+
+	if len(tree.root.p.(*orderedList).nodes) != 3 {
+		t.Errorf(
+			`Expected len: %d, received: %d`,
+			3,
+			len(tree.root.p.(*orderedList).nodes),
+		)
+	}
+}
+
+func TestOneDimensionalQuery(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 0)
+
+	tree := newTree(2, 1, p1, p2)
+
+	results := tree.GetRange(newQuery(0, 2, 0, 2))
+
+	checkEntries(t, results, p1, p2)
+}
+
+func TestTwoDimensionalQuery(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(0, 1)
+
+	tree := newTree(2, 1, p1, p2)
+
+	results := tree.GetRange(newQuery(0, 2, 0, 2))
+
+	checkEntries(t, results, p1, p2)
+}
+
+func TestDenseMatrixQuery(t *testing.T) {
+	maxRange := 1000
+
+	tree := New(2)
+
+	points := make([]r.Entry, maxRange*maxRange)
+	index := 0
+
+	for i := 0; i < maxRange; i++ {
+		for j := 0; j < maxRange; j++ {
+			p := newPoint(i, j)
+			points[index] = p
+			index++
+		}
+	}
+
+	//tree.rebalance()
+
+	tree.Insert(points...)
+	//log.Printf(`NODE: %+v`, tree.root.left.left)
+
+	points = points[0:index]
+
+	t0 := time.Now()
+	entries := tree.GetRange(newQuery(0, maxRange, 0, maxRange))
+	log.Printf(`time to query: %d ms`, time.Since(t0).Nanoseconds()/int64(time.Millisecond))
+
+	checkLen(t, entries, index)
+
+	mp := make(map[int]map[int]*point)
+
+	for _, entry := range points {
+		p := entry.(*point)
+		if _, ok := mp[p.x()]; !ok {
+			mp[p.x()] = make(map[int]*point)
+		}
+
+		mp[p.x()][p.y()] = p
+	}
+
+	t0 = time.Now()
+	index = 0
+	for i := 0; i < maxRange; i++ {
+		if _, ok := mp[i]; !ok {
+			continue
+		}
+
+		for j := 0; j < maxRange; j++ {
+			if p, ok := mp[i][j]; ok {
+				points[index] = p
+				index++
+			}
+		}
+	}
+
+	log.Printf(`time to query map: %d`, time.Since(t0).Nanoseconds()/int64(time.Millisecond))
+}
+
+/*
 func checkCoordinates(t *testing.T, entry r.Entry, x, y int) {
 	p, ok := entry.(*point)
 	if !ok {
@@ -125,31 +319,6 @@ func checkNumChildren(t *testing.T, n *node, numChildren int) {
 			`Expected num children: %d, received: %d`,
 			numChildren, n.numChildren,
 		)
-	}
-}
-
-func checkLen(t *testing.T, entries []r.Entry, expected int) {
-	if len(entries) != expected {
-		t.Errorf(`Expected len: %d, received: %d`, expected, len(entries))
-	}
-}
-
-func checkEntries(t *testing.T, entries []r.Entry, expected ...*coordinate) {
-	checkLen(t, entries, len(expected))
-
-	// this is inefficient, i know, just for testing
-	for _, coord := range expected {
-		found := false
-		for _, entry := range entries {
-			p := entry.(*point)
-			if coord.x == p.coordinates[0] && coord.y == p.coordinates[1] {
-				found = true
-			}
-		}
-
-		if !found {
-			t.Errorf(`Expected: %+v, not found.`, coord)
-		}
 	}
 }
 
@@ -254,8 +423,6 @@ func TestQueryMultipleLevels(t *testing.T) {
 
 	tree := New(2)
 
-	//tree.Insert(p1, p2, p3) //, p4, p5)
-
 	tree.Insert(p1)
 	tree.Insert(p2)
 	tree.Insert(p3)
@@ -350,7 +517,7 @@ func TestMiddleOfMultiDimensionalRange(t *testing.T) {
 }
 
 func TestLargeDenseMatrix(t *testing.T) {
-	maxRange := 10
+	maxRange := 9
 
 	tree := New(2)
 
@@ -360,7 +527,7 @@ func TestLargeDenseMatrix(t *testing.T) {
 	for i := 0; i < maxRange; i++ {
 		for j := 0; j < maxRange; j++ {
 			p := newPoint(i, j)
-			tree.Insert(p)
+			//tree.Insert(p)
 			points[index] = p
 			index++
 		}
@@ -368,9 +535,13 @@ func TestLargeDenseMatrix(t *testing.T) {
 
 	//tree.rebalance()
 
+	tree.Insert(points...)
+	log.Printf(`NODE: %+v`, tree.root.left.left)
+
 	points = points[0:index]
 
 	t0 := time.Now()
+	println(`SHIT STARTS HERE`)
 	entries := tree.GetRange(newQuery(0, maxRange, 0, maxRange))
 	log.Printf(`time to query: %d ms`, time.Since(t0).Nanoseconds()/int64(time.Millisecond))
 
@@ -803,3 +974,22 @@ func BenchmarkEditCells(b *testing.B) {
 		)
 	}
 }
+
+func TestProperQuery(t *testing.T) {
+	points := make([]r.Entry, 7)
+
+	for i := 0; i < 7; i++ {
+		points[i] = newPoint(i, 0)
+	}
+
+	tree := New(2, points...)
+
+	entries := tree.GetRange(newQuery(0, 7, 0, 7))
+
+	log.Printf(`ENTRIES: %+v`, entries)
+	log.Printf(`NODE: %+v`, tree.root.left.left)
+
+	if len(entries) != 7 {
+		t.Errorf(`fail`)
+	}
+}*/
