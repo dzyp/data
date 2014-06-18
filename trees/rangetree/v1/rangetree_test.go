@@ -238,8 +238,115 @@ func TestTwoDimensionalQuery(t *testing.T) {
 	checkEntries(t, results, p1, p2)
 }
 
+func TestInsertAfterCreation(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 0)
+
+	tree := newTree(2, 1, p1, p2)
+
+	p3 := newPoint(2, 0)
+	tree.Insert(p3)
+
+	results := tree.GetRange(newQuery(0, 3, 0, 3))
+
+	checkEntries(t, results, p1, p2, p3)
+}
+
+func TestCopyOverwritesRoot(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(0, 0)
+
+	tree := newTree(2, 1, p1)
+	tree.Insert(p2)
+
+	results := tree.GetRange(newQuery(0, 1, 0, 1))
+
+	checkEntries(t, results, p2)
+}
+
+func TestCopyOverwritesBranch(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 0)
+
+	tree := newTree(2, 1, p1, p2)
+
+	p3 := newPoint(1, 0)
+	tree.Insert(p3)
+
+	results := tree.GetRange(newQuery(0, 3, 0, 3))
+
+	checkEntries(t, results, p1, p3)
+}
+
+func TestOverwriteMultipleDimensions(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 1)
+	p3 := newPoint(2, 2)
+	p4 := newPoint(0, 0)
+	p5 := newPoint(1, 1)
+	p6 := newPoint(2, 2)
+
+	tree := newTree(2, 1, p1, p2, p3)
+
+	tree.Insert(p4, p5, p6)
+
+	results := tree.GetRange(newQuery(0, 3, 0, 3))
+
+	checkEntries(t, results, p4, p5, p6)
+}
+
+func BenchmarkGetRange(b *testing.B) {
+	points := make([]r.Entry, 100)
+	tree := newTree(2, 1)
+	for i := 0; i < 100; i++ {
+		points[i] = newPoint(i, i)
+	}
+
+	tree.Insert(points...)
+
+	var results []r.Entry
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		results = tree.GetRange(newQuery(0, 100, 0, 100))
+	}
+
+	b.StopTimer()
+
+	if len(results) != 100 {
+		b.Errorf(`Expected len: %d, received: %d`, 100, len(results))
+	}
+}
+
+func TestDoubleInsertNodes(b *testing.T) {
+	numItems := 6
+	points := make([]r.Entry, numItems)
+
+	for i := 0; i < numItems; i++ {
+		points[i] = newPoint(i, i)
+	}
+
+	//b.ResetTimer()
+
+	tree := New(2)
+
+	for i := 0; i < 1; i++ {
+		tree.Insert(points...)
+	}
+	//b.StopTimer()
+
+	result := tree.GetRange(newQuery(0, numItems, 0, numItems))
+
+	log.Printf(`RESULTS: %+v`, result)
+	log.Printf(`NODE: %+v`, tree.root)
+
+	if len(result) != numItems {
+		b.Errorf(`Expected len: %d, received: %d`, numItems, len(result))
+	}
+}
+
 func TestDenseMatrixQuery(t *testing.T) {
-	maxRange := 1000
+	maxRange := 10
 
 	tree := New(2)
 
@@ -254,10 +361,7 @@ func TestDenseMatrixQuery(t *testing.T) {
 		}
 	}
 
-	//tree.rebalance()
-
 	tree.Insert(points...)
-	//log.Printf(`NODE: %+v`, tree.root.left.left)
 
 	points = points[0:index]
 

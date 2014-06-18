@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"log"
+
 	r "github.com/dzyp/data/trees/rangetree"
 )
 
@@ -133,6 +135,22 @@ func (self *node) insert(tree *tree, count *int, entries ...r.Entry) {
 			self.value, tree.dimension,
 		)
 
+		/*
+			index := 0
+			for _, node := range rightNodes {
+				if node.GetDimensionalValue(tree.dimension) == self.value {
+					leftNodes = append(leftNodes, node)
+					index++
+				} else {
+					break
+				}
+			}
+
+		rightNodes = rightNodes[index:]*/
+
+		log.Printf(`left nodes: %+v`, leftNodes)
+		log.Printf(`right nodes: %+v`, rightNodes)
+
 		if len(leftNodes) > 0 { // there are more than 1 value and we need to split
 			value = Entries(leftNodes).MedianEntry().GetDimensionalValue(
 				tree.dimension,
@@ -175,6 +193,19 @@ func (self *node) insert(tree *tree, count *int, entries ...r.Entry) {
 	}
 
 	left, right := Entries(entries).SplitAtValue(self.value, tree.dimension)
+
+	index := 0
+	for _, node := range right {
+		if node.GetDimensionalValue(tree.dimension) == self.value {
+			left = append(left, node)
+			index++
+		} else {
+			break
+		}
+	}
+
+	right = right[index:]
+
 	self.left.insert(tree, count, left...)
 	self.right.insert(tree, count, right...)
 

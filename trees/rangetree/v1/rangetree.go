@@ -1,7 +1,7 @@
 package v1
 
 import (
-	//"log"
+	"log"
 
 	r "github.com/dzyp/data/trees/rangetree"
 )
@@ -61,6 +61,8 @@ func (self *tree) insert(entries ...r.Entry) int {
 	} else {
 		n = self.root
 	}
+
+	log.Printf(`ROOT VALUE: %+v`, n.value)
 
 	count := 0
 

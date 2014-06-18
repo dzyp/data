@@ -28,6 +28,7 @@ func checkSortedList(t *testing.T, entries []int, expected ...int) {
 func checkEntries(t *testing.T, entries []r.Entry, expected ...*point) {
 	if len(entries) != len(expected) {
 		t.Errorf(`Expected len: %d, received: %d`, len(expected), len(entries))
+		return
 	}
 
 	for i, entry := range entries {
