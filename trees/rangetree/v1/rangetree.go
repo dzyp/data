@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"log"
-
 	r "github.com/dzyp/data/trees/rangetree"
 )
 
@@ -46,27 +44,28 @@ func (self *tree) copy() itree {
 }
 
 func (self *tree) insert(entries ...r.Entry) int {
-	var n *node
-	if self.root == nil {
-		n = newNode()
-		n.value = Entries(entries).MedianEntry().GetDimensionalValue(
-			self.dimension,
-		)
-		if self.isSecondToLastDimension() {
-			n.p = newOrderedList(self.dimension + 1)
-		} else {
-			n.p = newTree(self.maxDimensions, self.dimension+1)
-		}
-		self.root = n
-	} else {
-		n = self.root
+	if len(entries) == 0 {
+		return 0
 	}
 
-	log.Printf(`ROOT VALUE: %+v`, n.value)
+	if self.root == nil {
+		self.root = newNodesFromEntries(
+			self,
+			Entries(entries).GetOrderedUniqueAtDimension(self.dimension),
+			entries,
+		)
+		self.numChildren = self.root.numChildren
+		return self.numChildren
+	}
 
-	count := 0
+	var count int
 
-	self.root.insert(self, &count, entries...)
+	self.root.insert(
+		self,
+		&count,
+		Entries(entries).GetOrderedUniqueAtDimension(self.dimension),
+		entries,
+	)
 	self.numChildren += count
 
 	return count
@@ -87,6 +86,37 @@ func (self *tree) query(query r.Query, result *result) {
 	}
 
 	self.root.query(self, query, result, false, false)
+}
+
+func (self *tree) all(result *result) {
+	if self.root == nil {
+		return
+	}
+
+	self.root.all(result)
+}
+
+func (self *tree) All() []r.Entry {
+	results := newResults(self.numChildren)
+	self.all(results)
+	return results.entries
+}
+
+func (self *tree) Remove(entries ...r.Entry) {
+
+}
+
+func (self *tree) Copy() r.RangeTree {
+	return self.copy().(*tree)
+}
+
+func (self *tree) Clear() {
+	self.root = nil
+	self.numChildren = 0
+}
+
+func (self *tree) Len() int {
+	return self.numChildren
 }
 
 func (self *tree) GetRange(query r.Query) []r.Entry {

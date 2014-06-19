@@ -151,7 +151,7 @@ func TestInsertMultipleValues(t *testing.T) {
 		t.Errorf(`Expected numchildren: %d, received: %d`, 2, tree.numChildren)
 	}
 
-	if tree.root.value != 0 {
+	if tree.root.value != 1 {
 		t.Errorf(`Expected value: %d, received: %d`, 0, tree.root.value)
 	}
 
@@ -187,7 +187,7 @@ func TestInsertMultipleValues(t *testing.T) {
 		)
 	}
 
-	log.Printf(`NODE: %+v`, tree.root.left.p.(*orderedList).nodes)
+	log.Printf(`NODE: %+v`, tree.root.p.(*orderedList).nodes)
 }
 
 func TestInsertMultipleDuplicateValues(t *testing.T) {
@@ -295,6 +295,44 @@ func TestOverwriteMultipleDimensions(t *testing.T) {
 	checkEntries(t, results, p4, p5, p6)
 }
 
+func TestAll(t *testing.T) {
+	numItems := 10
+	entries := make([]r.Entry, numItems)
+
+	for i := 0; i < numItems; i++ {
+		entries[i] = newPoint(i, i)
+	}
+
+	tree := New(2, entries...)
+
+	results := tree.All()
+
+	checkEntries(t, results, entries...)
+}
+
+func TestGetSingleItem(t *testing.T) {
+	p1 := newPoint(0, 0)
+	p2 := newPoint(1, 0)
+	p3 := newPoint(0, 1)
+	p4 := newPoint(1, 1)
+
+	tree := newTree(2, 1, p1, p2, p3, p4)
+
+	entries := tree.GetRange(newQuery(1, 2, 1, 2))
+
+	checkEntries(t, entries, p4)
+}
+
+func TestQueryNonExistentValue(t *testing.T) {
+	p1 := newPoint(0, 0)
+
+	tree := newTree(2, 1, p1)
+
+	entries := tree.GetRange(newQuery(1, 2, 1, 2))
+
+	checkEntries(t, entries)
+}
+
 func BenchmarkGetRange(b *testing.B) {
 	points := make([]r.Entry, 100)
 	tree := newTree(2, 1)
@@ -318,30 +356,44 @@ func BenchmarkGetRange(b *testing.B) {
 	}
 }
 
-func TestDoubleInsertNodes(b *testing.T) {
-	numItems := 6
+func BenchmarkInsertNodes(b *testing.B) {
+	numItems := 100
 	points := make([]r.Entry, numItems)
 
 	for i := 0; i < numItems; i++ {
 		points[i] = newPoint(i, i)
 	}
 
-	//b.ResetTimer()
+	b.ResetTimer()
 
 	tree := New(2)
 
-	for i := 0; i < 1; i++ {
+	for i := 0; i < b.N; i++ {
 		tree.Insert(points...)
 	}
-	//b.StopTimer()
+	b.StopTimer()
 
 	result := tree.GetRange(newQuery(0, numItems, 0, numItems))
 
-	log.Printf(`RESULTS: %+v`, result)
-	log.Printf(`NODE: %+v`, tree.root)
-
 	if len(result) != numItems {
 		b.Errorf(`Expected len: %d, received: %d`, numItems, len(result))
+	}
+}
+
+func BenchmarkAll(b *testing.B) {
+	numItems := 100
+	points := make([]r.Entry, numItems)
+
+	for i := 0; i < numItems; i++ {
+		points[i] = newPoint(i, i)
+	}
+
+	tree := New(2, points...)
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		tree.All()
 	}
 }
 

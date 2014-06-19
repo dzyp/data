@@ -20,50 +20,10 @@ func (self *orderedList) insert(entries ...r.Entry) int {
 		return 0
 	}
 
-	nodesAdded := 0
-	cpEntries := make([]r.Entry, len(entries))
-	copy(cpEntries, entries)
+	var result int
+	self.nodes, result = Entries(self.nodes).Merge(entries...)
 
-	newNodes := make([]r.Entry, 0, len(entries)+len(self.nodes))
-
-	var newNode r.Entry
-	var oldNode r.Entry
-
-	for {
-		if len(self.nodes) == 0 && len(cpEntries) == 0 {
-			break
-		} else if len(self.nodes) == 0 {
-			newNodes = append(newNodes, cpEntries...)
-			nodesAdded += len(cpEntries)
-			break
-		} else if len(cpEntries) == 0 {
-			newNodes = append(newNodes, self.nodes...)
-			break
-		}
-
-		newNode = cpEntries[0]
-		oldNode = self.nodes[0]
-
-		if newNode.Less(oldNode, 1) {
-			newNodes = append(newNodes, newNode)
-			cpEntries = Entries(cpEntries).RemoveAt(0)
-			nodesAdded++
-		} else if oldNode.Less(newNode, 1) {
-			newNodes = append(newNodes, oldNode)
-			self.nodes = Entries(self.nodes).RemoveAt(0)
-			nodesAdded++
-		} else { //equal
-			//println(`EQUAL`)
-			newNodes = append(newNodes, newNode) // we override the old value
-			self.nodes = Entries(self.nodes).RemoveAt(0)
-			cpEntries = Entries(cpEntries).RemoveAt(0)
-			// we don't add to nodes added here as this number of rebalancing purposes
-		}
-	}
-
-	self.nodes = newNodes
-
-	return nodesAdded
+	return result
 }
 
 func (self *orderedList) copy() itree {
@@ -86,6 +46,10 @@ func (self *orderedList) query(query r.Query, result *result) {
 			break
 		}
 	}
+}
+
+func (self *orderedList) all(result *result) {
+	result.AddEntry(self.nodes...)
 }
 
 func (self *orderedList) Insert(entries ...r.Entry) {
