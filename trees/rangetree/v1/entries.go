@@ -100,6 +100,8 @@ func (self Entries) Merge(entries ...r.Entry) ([]r.Entry, int) {
 
 	nodesAdded := 0
 
+	Entries(entries).Sort(1)
+
 	i := sort.Search(len(self), func(i int) bool {
 		return !self[i].Less(entries[0], 1)
 	})
@@ -133,11 +135,11 @@ func (self Entries) Merge(entries ...r.Entry) ([]r.Entry, int) {
 		if len(self) == oldIndex && len(entries) == newIndex {
 			break
 		} else if len(self) == oldIndex {
-			newNodes = append(newNodes, entries...)
+			newNodes = append(newNodes, entries[newIndex:]...)
 			nodesAdded += len(entries)
 			break
 		} else if len(entries) == newIndex {
-			newNodes = append(newNodes, self...)
+			newNodes = append(newNodes, self[oldIndex:]...)
 			break
 		}
 

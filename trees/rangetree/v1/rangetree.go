@@ -1,6 +1,11 @@
 package v1
 
 import (
+	"log"
+	"runtime"
+	"sync"
+	"time"
+
 	r "github.com/dzyp/data/trees/rangetree"
 )
 
@@ -43,36 +48,155 @@ func (self *tree) copy() itree {
 	return t
 }
 
-func (self *tree) insert(entries ...r.Entry) int {
-	if len(entries) == 0 {
+func (self *tree) insert(items ...r.Entry) int {
+	if len(items) == 0 {
 		return 0
 	}
 
+	entries := make([]r.Entry, len(items))
+	copy(entries, items)
+
 	if self.root == nil {
-		self.root = newNodesFromEntries(
-			self,
-			Entries(entries).GetOrderedUniqueAtDimension(self.dimension),
-			entries,
-		)
-		self.numChildren = self.root.numChildren
-		return self.numChildren
+		i := len(entries) / 2
+		entry := entries[i]
+		log.Printf(`ROOT ENTRY: %+v`, entry)
+		root := newNode()
+		root.value = entry.GetDimensionalValue(self.dimension)
+		if self.isSecondToLastDimension() {
+			root.p = newOrderedList(self.dimension + 1)
+			root.p.insert(entry)
+		} else {
+			root.p = newTree(self.maxDimensions, self.dimension+1, entry)
+		}
+
+		copy(entries[i:], entries[i+1:])
+		entries[len(entries)-1] = nil // or the zero value of T
+		entries = entries[:len(entries)-1]
+
+		self.root = root
 	}
 
-	var count int
+	path := make([]*node, 0, self.numChildren+len(entries))
+	nextDimensionMap := make(map[*node][]r.Entry, len(entries))
 
-	self.root.insert(
-		self,
-		&count,
-		Entries(entries).GetOrderedUniqueAtDimension(self.dimension),
-		entries,
-	)
-	self.numChildren += count
+	println(`START`)
+	t0 := time.Now()
 
-	return count
+	for _, entry := range entries {
+		parent := self.root
+		path = nil
+		value := entry.GetDimensionalValue(self.dimension)
+		for {
+			if parent.isLeaf() {
+				if value == parent.value { // add to next dimension
+					path = append(path, parent)
+				} else if value > parent.value {
+					path = append(path, parent)
+					leftNode := newNode()
+					leftNode.p = parent.p.copy()
+					leftNode.value = parent.value
+					leftNode.parent = parent
+					parent.left = leftNode
+
+					toAdd := nextDimensionMap[parent]
+					if toAdd != nil {
+						ns := make([]r.Entry, len(toAdd))
+						copy(ns, toAdd)
+						nextDimensionMap[leftNode] = ns
+					}
+
+					rightNode := newNode()
+					if self.isSecondToLastDimension() {
+						rightNode.p = newOrderedList(self.dimension + 1)
+					} else {
+						rightNode.p = newTree(
+							self.maxDimensions, self.dimension+1,
+						)
+					}
+					rightNode.value = value
+					rightNode.parent = parent
+					parent.right = rightNode
+					path = append(path, rightNode)
+
+					parent.value = value
+					parent.numChildren++
+				} else {
+					path = append(path, parent)
+					rightNode := newNode()
+					rightNode.value = parent.value
+					rightNode.parent = parent
+					rightNode.p = parent.p.copy()
+					parent.right = rightNode
+
+					toAdd := nextDimensionMap[parent]
+					if toAdd != nil {
+						ns := make([]r.Entry, len(toAdd))
+						copy(ns, toAdd)
+						nextDimensionMap[rightNode] = ns
+					}
+
+					leftNode := newNode()
+					if self.isSecondToLastDimension() {
+						leftNode.p = newOrderedList(self.dimension + 1)
+					} else {
+						leftNode.p = newTree(
+							self.maxDimensions, self.dimension+1,
+						)
+					}
+					leftNode.value = value
+					leftNode.parent = parent
+					parent.left = leftNode
+					path = append(path, leftNode)
+					parent.numChildren++
+				}
+
+				break
+			}
+
+			parent.numChildren++
+			path = append(path, parent)
+			if value < parent.value {
+				parent = parent.left
+			} else {
+				parent = parent.right
+			}
+		}
+
+		for _, node := range path {
+			nextDimensionMap[node] = append(nextDimensionMap[node], entry)
+		}
+	}
+
+	println(`STOP`)
+	log.Printf(`FIRST LOOP TOOK: %d`, time.Since(t0).Nanoseconds()/int64(time.Millisecond))
+
+	path = make([]*node, 0, len(nextDimensionMap))
+
+	for node, _ := range nextDimensionMap {
+		path = append(path, node)
+	}
+
+	chunks := splitNodes(path, runtime.NumCPU())
+	var wg sync.WaitGroup
+	wg.Add(len(chunks))
+
+	for _, chunk := range chunks {
+		go func(nodes []*node) {
+			for _, node := range nodes {
+				entries := nextDimensionMap[node]
+				node.p.insert(entries...)
+			}
+
+			wg.Done()
+		}(chunk)
+	}
+
+	wg.Wait()
+
+	return len(entries)
 }
 
 func (self *tree) Insert(entries ...r.Entry) {
-	Entries(entries).Sort(self.dimension)
 	self.insert(entries...)
 }
 

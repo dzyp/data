@@ -247,6 +247,8 @@ func TestInsertAfterCreation(t *testing.T) {
 	p3 := newPoint(2, 0)
 	tree.Insert(p3)
 
+	log.Printf(`ROOT: %+v, %p`, tree.root.left, tree.root.left)
+
 	results := tree.GetRange(newQuery(0, 3, 0, 3))
 
 	checkEntries(t, results, p1, p2, p3)
@@ -296,7 +298,7 @@ func TestOverwriteMultipleDimensions(t *testing.T) {
 }
 
 func TestAll(t *testing.T) {
-	numItems := 10
+	numItems := 3
 	entries := make([]r.Entry, numItems)
 
 	for i := 0; i < numItems; i++ {
@@ -398,7 +400,7 @@ func BenchmarkAll(b *testing.B) {
 }
 
 func TestDenseMatrixQuery(t *testing.T) {
-	maxRange := 10
+	maxRange := 500
 
 	tree := New(2)
 
@@ -407,13 +409,17 @@ func TestDenseMatrixQuery(t *testing.T) {
 
 	for i := 0; i < maxRange; i++ {
 		for j := 0; j < maxRange; j++ {
+			if i%2 == 0 && j%2 == 0 {
+				continue
+			}
+
 			p := newPoint(i, j)
 			points[index] = p
 			index++
 		}
 	}
 
-	tree.Insert(points...)
+	tree.Insert(points[:index]...)
 
 	points = points[0:index]
 
