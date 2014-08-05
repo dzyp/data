@@ -23,6 +23,48 @@ type node struct {
 	p      itree
 }
 
+func shiftLeft(n *node, newValue int, t *tree) {
+	leftNode := newNode()
+	leftNode.p = n.p.copy()
+	leftNode.value = n.value
+	leftNode.parent = n
+	n.left = leftNode
+
+	rightNode := newNode()
+	if t.isSecondToLastDimension() {
+		rightNode.p = newOrderedList(t.dimension + 1)
+	} else {
+		rightNode.p = newTree(
+			t.maxDimensions, t.dimension+1,
+		)
+	}
+	rightNode.value = newValue
+	rightNode.parent = n
+	n.right = rightNode
+	n.value = newValue
+}
+
+func shiftRight(n *node, newValue int, t *tree) {
+	rightNode := newNode()
+	rightNode.value = n.value
+	rightNode.parent = n
+	rightNode.p = n.p.copy()
+	n.right = rightNode
+
+	leftNode := newNode()
+	if t.isSecondToLastDimension() {
+		leftNode.p = newOrderedList(t.dimension + 1)
+	} else {
+		leftNode.p = newTree(
+			t.maxDimensions, t.dimension+1,
+		)
+	}
+
+	leftNode.value = newValue
+	leftNode.parent = n
+	n.left = leftNode
+}
+
 func newNode() *node {
 	return &node{}
 }

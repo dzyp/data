@@ -54,7 +54,7 @@ func (self *orderedList) len() int {
 }
 
 func (self *orderedList) remove(entries ...r.Entry) {
-
+	self.nodes = Entries(self.nodes).Remove(entries...)
 }
 
 func (self *orderedList) Insert(entries ...r.Entry) {

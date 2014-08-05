@@ -470,9 +470,129 @@ func TestReturnParents(t *testing.T) {
 	tree := New(2)
 
 	path := tree.returnParents(n1)
-
 	expected := []*node{n2, n1}
 	if !reflect.DeepEqual(path, expected) {
 		t.Errorf(`Expected: %+v, received: %+v`, expected, path)
+	}
+
+	path = tree.returnParents(n2)
+	expected = []*node{n2}
+	if !reflect.DeepEqual(path, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, path)
+	}
+}
+
+func TestFindPath(t *testing.T) {
+	n1 := &node{
+		value: 2,
+		p:     newOrderedList(2),
+	}
+	n2 := &node{value: 1}
+	n3 := &node{value: 2}
+
+	n2.parent, n3.parent = n1, n1
+	n1.left, n1.right = n2, n3
+
+	tree := New(2)
+	tree.root = n1
+
+	path := tree.findPath(newPoint(1, 0), true)
+	expected := []*node{n1, n2}
+
+	if !reflect.DeepEqual(path, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, path)
+	}
+
+	path = tree.findPath(newPoint(0, 0), true)
+	expected = []*node{n1, n2}
+
+	if !reflect.DeepEqual(path, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, path)
+	}
+
+	path = tree.findPath(newPoint(0, 0), false)
+	expected = nil
+
+	if !reflect.DeepEqual(expected, path) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, path)
+	}
+
+	path = tree.findPath(newPoint(2, 0), true)
+	expected = []*node{n1, n3}
+
+	if !reflect.DeepEqual(path, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, path)
+	}
+
+	path = tree.findPath(newPoint(2, 0), false)
+	expected = []*node{n1, n3}
+
+	if !reflect.DeepEqual(path, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, path)
+	}
+
+	path = tree.findPath(newPoint(3, 0), false)
+	expected = nil
+
+	if !reflect.DeepEqual(path, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, path)
+	}
+}
+
+func TestRemoveEntry(t *testing.T) {
+	tree := New(2)
+
+	p1 := newPoint(1, 1)
+	p2 := newPoint(2, 2)
+
+	tree.Insert(p1, p2)
+
+	if tree.Len() != 2 {
+		t.Errorf(`Expected len: %d, received: %d`, 2, tree.Len())
+	}
+
+	tree.Remove(p1)
+
+	result := tree.GetRange(newQuery(0, 10, 0, 10))
+	expected := []r.Entry{p2}
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, result)
+	}
+
+	tree.Remove(p2)
+
+	if tree.Len() != 0 {
+		t.Errorf(`Expected len: %d, received: %d`, 0, tree.Len())
+	}
+
+	result = tree.GetRange(newQuery(0, 10, 0, 10))
+	expected = []r.Entry{}
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, result)
+	}
+
+	p3 := newPoint(3, 3)
+	tree.Insert(p3)
+
+	if tree.Len() != 1 {
+		t.Errorf(`Expected len: %d, received: %d`, 1, tree.Len())
+	}
+
+	result = tree.GetRange(newQuery(0, 10, 0, 10))
+	expected = []r.Entry{p3}
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, result)
+	}
+
+	tree.Remove(p3)
+
+	result = tree.GetRange(newQuery(0, 10, 0, 10))
+	expected = []r.Entry{}
+
+	if !reflect.DeepEqual(result, expected) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, result)
 	}
 }

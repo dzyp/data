@@ -1,6 +1,7 @@
 package v1
 
 import (
+	//"log"
 	"runtime"
 	"sync"
 
@@ -81,64 +82,31 @@ func (self *tree) insert(items ...r.Entry) {
 		value := entry.GetDimensionalValue(self.dimension)
 		for {
 			if parent.isLeaf() {
+				path = append(path, parent)
 				if value == parent.value { // add to next dimension
-					path = append(path, parent)
+
 				} else if value > parent.value {
-					path = append(path, parent)
-					leftNode := newNode()
-					leftNode.p = parent.p.copy()
-					leftNode.value = parent.value
-					leftNode.parent = parent
-					parent.left = leftNode
+					shiftLeft(parent, value, self)
 
 					toAdd := nextDimensionMap[parent]
 					if toAdd != nil {
 						ns := make([]r.Entry, len(toAdd))
 						copy(ns, toAdd)
-						nextDimensionMap[leftNode] = ns
+						nextDimensionMap[parent.left] = ns
 					}
 
-					rightNode := newNode()
-					if self.isSecondToLastDimension() {
-						rightNode.p = newOrderedList(self.dimension + 1)
-					} else {
-						rightNode.p = newTree(
-							self.maxDimensions, self.dimension+1,
-						)
-					}
-					rightNode.value = value
-					rightNode.parent = parent
-					parent.right = rightNode
-					path = append(path, rightNode)
-
-					parent.value = value
+					path = append(path, parent.right)
 				} else {
-					path = append(path, parent)
-					rightNode := newNode()
-					rightNode.value = parent.value
-					rightNode.parent = parent
-					rightNode.p = parent.p.copy()
-					parent.right = rightNode
+					shiftRight(parent, value, self)
 
 					toAdd := nextDimensionMap[parent]
 					if toAdd != nil {
 						ns := make([]r.Entry, len(toAdd))
 						copy(ns, toAdd)
-						nextDimensionMap[rightNode] = ns
+						nextDimensionMap[parent.right] = ns
 					}
 
-					leftNode := newNode()
-					if self.isSecondToLastDimension() {
-						leftNode.p = newOrderedList(self.dimension + 1)
-					} else {
-						leftNode.p = newTree(
-							self.maxDimensions, self.dimension+1,
-						)
-					}
-					leftNode.value = value
-					leftNode.parent = parent
-					parent.left = leftNode
-					path = append(path, leftNode)
+					path = append(path, parent.left)
 				}
 
 				break
@@ -245,22 +213,73 @@ func (self *tree) findPath(entry r.Entry, approximate bool) []*node {
 		return nil
 	}
 
+	value := entry.GetDimensionalValue(self.dimension)
 	parent := self.root
 	for {
 		if parent.isLeaf() {
+			if approximate {
+				return self.returnParents(parent)
+			} else if parent.value == value {
+				return self.returnParents(parent)
+			}
 
+			return nil
+		} else if value < parent.value {
+			parent = parent.left
+		} else {
+			parent = parent.right
 		}
 	}
 }
 
 func (self *tree) remove(entries ...r.Entry) {
+	index := make(map[*node][]r.Entry, len(entries))
 
+	for _, entry := range entries {
+		path := self.findPath(entry, false)
+		if path == nil {
+			continue
+		}
+
+		for _, n := range path {
+			if _, ok := index[n]; !ok {
+				index[n] = make([]r.Entry, 0, len(entries))
+			}
+
+			index[n] = append(index[n], entry)
+		}
+	}
+
+	path := make([]*node, 0, self.Len())
+
+	for node, _ := range index {
+		path = append(path, node)
+	}
+
+	chunks := splitNodes(path, runtime.NumCPU())
+	var wg sync.WaitGroup
+	wg.Add(len(chunks))
+
+	for _, chunk := range chunks {
+		go func(nodes []*node) {
+			for _, node := range nodes {
+				entries := index[node]
+				node.p.remove(entries...)
+			}
+
+			wg.Done()
+		}(chunk)
+	}
+
+	wg.Wait()
 }
 
 func (self *tree) Remove(entries ...r.Entry) {
 	if self.root == nil {
 		return
 	}
+
+	self.remove(entries...)
 }
 
 func (self *tree) Copy() r.RangeTree {
