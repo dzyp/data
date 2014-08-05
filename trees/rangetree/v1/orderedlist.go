@@ -15,15 +15,12 @@ func newOrderedList(dimension int) *orderedList {
 	}
 }
 
-func (self *orderedList) insert(entries ...r.Entry) int {
+func (self *orderedList) insert(entries ...r.Entry) {
 	if len(entries) == 0 {
-		return 0
+		return
 	}
 
-	var result int
-	self.nodes, result = Entries(self.nodes).Merge(entries...)
-
-	return result
+	self.nodes, _ = Entries(self.nodes).Merge(entries...)
 }
 
 func (self *orderedList) copy() itree {
@@ -50,6 +47,14 @@ func (self *orderedList) query(query r.Query, result *result) {
 
 func (self *orderedList) all(result *result) {
 	result.AddEntry(self.nodes...)
+}
+
+func (self *orderedList) len() int {
+	return len(self.nodes)
+}
+
+func (self *orderedList) remove(entries ...r.Entry) {
+
 }
 
 func (self *orderedList) Insert(entries ...r.Entry) {

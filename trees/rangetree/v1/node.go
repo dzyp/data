@@ -7,19 +7,20 @@ import (
 type itree interface {
 	// takes a list of entries and returns a value indicating the number of entries
 	// added
-	insert(entries ...r.Entry) int
+	insert(entries ...r.Entry)
+	remove(entries ...r.Entry)
 	copy() itree
 	query(r.Query, *result)
 	all(*result)
+	len() int
 }
 
 type node struct {
-	parent      *node
-	left        *node
-	right       *node
-	value       int
-	p           itree
-	numChildren int
+	parent *node
+	left   *node
+	right  *node
+	value  int
+	p      itree
 }
 
 func newNode() *node {
@@ -42,7 +43,6 @@ func newNodesFromEntries(tree *tree, values []int, entries []r.Entry) *node {
 	if len(values) == 1 {
 		n.value = values[0]
 		entries = Entries(entries).GetEntriesAtValue(n.value, tree.dimension)
-		n.numChildren = len(entries)
 		n.p.insert(entries...)
 		return n
 	}
@@ -60,8 +60,6 @@ func newNodesFromEntries(tree *tree, values []int, entries []r.Entry) *node {
 	right := newNodesFromEntries(tree, rightValues, rightEntries)
 	left.parent = n
 	right.parent = n
-	n.numChildren += left.numChildren
-	n.numChildren += right.numChildren
 
 	n.left = left
 	n.right = right
@@ -84,6 +82,10 @@ func (self *node) isLeft() bool {
 
 func (self *node) isRoot() bool {
 	return self.parent == nil
+}
+
+func (self *node) len() int {
+	return self.p.len()
 }
 
 func (self *node) copy() *node {
@@ -142,46 +144,13 @@ func (self *node) all(result *result) {
 	self.p.all(result)
 }
 
-func (self *node) insert(tree *tree, count *int, values []int, entries []r.Entry) {
-	if len(entries) == 0 {
-		return
+type Nodes []*node
+
+func (self Nodes) Reverse() Nodes {
+	for i, j := 0, len(self)-1; i < j; i, j = i+1, j-1 {
+		self[i], self[j] = self[j], self[i]
 	}
 
-	if self.isLeaf() {
-		var numAdded int
-		values = Values(values).Add(self.value)
-		result := newResults(tree.numChildren)
-		self.p.all(result)
-		entries, numAdded = Entries(result.entries).Merge(entries...)
-		*count += numAdded
-
-		n := newNodesFromEntries(tree, values, entries)
-
-		n.parent = self.parent
-
-		if self.isRoot() {
-			tree.root = n
-		} else {
-			if self.isLeft() {
-				self.parent.left = n
-			} else {
-				self.parent.right = n
-			}
-		}
-
-		self.parent = nil
-		self.p = nil
-		return
-	}
-
-	leftValues, rightValues := Values(values).SplitAtValue(self.value)
-	leftNodes, rightNodes := Entries(entries).SplitAtValue(
-		self.value, tree.dimension,
-	)
-
-	self.left.insert(tree, count, leftValues, leftNodes)
-	self.right.insert(tree, count, rightValues, rightNodes)
-
-	self.numChildren += *count
-	self.p.insert(entries...)
+	self = self
+	return self
 }

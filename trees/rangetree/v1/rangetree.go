@@ -1,10 +1,8 @@
 package v1
 
 import (
-	"log"
 	"runtime"
 	"sync"
-	"time"
 
 	r "github.com/dzyp/data/trees/rangetree"
 )
@@ -32,7 +30,6 @@ type tree struct {
 	root          *node
 	dimension     int
 	maxDimensions int
-	numChildren   int
 }
 
 func (self *tree) copy() itree {
@@ -48,9 +45,9 @@ func (self *tree) copy() itree {
 	return t
 }
 
-func (self *tree) insert(items ...r.Entry) int {
+func (self *tree) insert(items ...r.Entry) {
 	if len(items) == 0 {
-		return 0
+		return
 	}
 
 	entries := make([]r.Entry, len(items))
@@ -59,7 +56,6 @@ func (self *tree) insert(items ...r.Entry) int {
 	if self.root == nil {
 		i := len(entries) / 2
 		entry := entries[i]
-		log.Printf(`ROOT ENTRY: %+v`, entry)
 		root := newNode()
 		root.value = entry.GetDimensionalValue(self.dimension)
 		if self.isSecondToLastDimension() {
@@ -76,11 +72,8 @@ func (self *tree) insert(items ...r.Entry) int {
 		self.root = root
 	}
 
-	path := make([]*node, 0, self.numChildren+len(entries))
+	path := make([]*node, 0, len(entries))
 	nextDimensionMap := make(map[*node][]r.Entry, len(entries))
-
-	println(`START`)
-	t0 := time.Now()
 
 	for _, entry := range entries {
 		parent := self.root
@@ -119,7 +112,6 @@ func (self *tree) insert(items ...r.Entry) int {
 					path = append(path, rightNode)
 
 					parent.value = value
-					parent.numChildren++
 				} else {
 					path = append(path, parent)
 					rightNode := newNode()
@@ -147,13 +139,11 @@ func (self *tree) insert(items ...r.Entry) int {
 					leftNode.parent = parent
 					parent.left = leftNode
 					path = append(path, leftNode)
-					parent.numChildren++
 				}
 
 				break
 			}
 
-			parent.numChildren++
 			path = append(path, parent)
 			if value < parent.value {
 				parent = parent.left
@@ -163,12 +153,12 @@ func (self *tree) insert(items ...r.Entry) int {
 		}
 
 		for _, node := range path {
+			if _, ok := nextDimensionMap[node]; !ok {
+				nextDimensionMap[node] = make([]r.Entry, 0, len(entries))
+			}
 			nextDimensionMap[node] = append(nextDimensionMap[node], entry)
 		}
 	}
-
-	println(`STOP`)
-	log.Printf(`FIRST LOOP TOOK: %d`, time.Since(t0).Nanoseconds()/int64(time.Millisecond))
 
 	path = make([]*node, 0, len(nextDimensionMap))
 
@@ -192,8 +182,6 @@ func (self *tree) insert(items ...r.Entry) int {
 	}
 
 	wg.Wait()
-
-	return len(entries)
 }
 
 func (self *tree) Insert(entries ...r.Entry) {
@@ -220,14 +208,59 @@ func (self *tree) all(result *result) {
 	self.root.all(result)
 }
 
+func (self *tree) len() int {
+	if self.root == nil {
+		return 0
+	}
+
+	return self.root.len()
+}
+
 func (self *tree) All() []r.Entry {
-	results := newResults(self.numChildren)
+	results := newResults(self.Len())
 	self.all(results)
 	return results.entries
 }
 
-func (self *tree) Remove(entries ...r.Entry) {
+//returnParents will take a node and return a list representing the path
+//to the node with the node coming last
+func (self *tree) returnParents(n *node) []*node {
+	nodes := make([]*node, 0, self.Len())
+	for n != nil {
+		nodes = append(nodes, n)
+		n = n.parent
+	}
 
+	nodes = Nodes(nodes).Reverse()
+
+	return nodes
+}
+
+//findPath will return a slice representing the path to that node.  The first
+//item in the slice will be closest to the root and the last item closest to
+//the node.  Approximate indicates if this function should return a leaf
+//node "closest" to the given value or should return only an exact match.
+func (self *tree) findPath(entry r.Entry, approximate bool) []*node {
+	if self.root == nil {
+		return nil
+	}
+
+	parent := self.root
+	for {
+		if parent.isLeaf() {
+
+		}
+	}
+}
+
+func (self *tree) remove(entries ...r.Entry) {
+
+}
+
+func (self *tree) Remove(entries ...r.Entry) {
+	if self.root == nil {
+		return
+	}
 }
 
 func (self *tree) Copy() r.RangeTree {
@@ -236,15 +269,14 @@ func (self *tree) Copy() r.RangeTree {
 
 func (self *tree) Clear() {
 	self.root = nil
-	self.numChildren = 0
 }
 
 func (self *tree) Len() int {
-	return self.numChildren
+	return self.len()
 }
 
 func (self *tree) GetRange(query r.Query) []r.Entry {
-	result := newResults(self.numChildren)
+	result := newResults(self.Len())
 	self.query(query, result)
 	return result.entries
 }

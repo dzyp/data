@@ -68,28 +68,6 @@ func (self Entries) GetEntriesAtValue(value, dimension int) []r.Entry {
 	return entries
 }
 
-func (self Entries) RemoveAt(i int) []r.Entry {
-	if i >= len(self) { // this can't happen
-		return self
-	}
-
-	copy(self[i:], self[i+1:])
-	self[len(self)-1] = nil
-	self = self[:len(self)-1]
-
-	return self
-}
-
-func (self Entries) ShiftLeft(value, dimension int, entries []r.Entry) {
-	for _, entry := range entries {
-		if entry.GetDimensionalValue(dimension) == value {
-			self = append(self, entry)
-		} else {
-			break
-		}
-	}
-}
-
 /*
 The return value is the number of new values entered
 */
@@ -166,41 +144,29 @@ func (self Entries) Merge(entries ...r.Entry) ([]r.Entry, int) {
 	return newNodes, nodesAdded
 }
 
-/*
-First value is items removed and second value is result slice
-*/
-func (self Entries) RemovePrefix(value, dimension int) ([]r.Entry, []r.Entry) {
-	index := 0
-	removed := make([]r.Entry, 0, len(self))
-	for _, entry := range self {
-		if entry.GetDimensionalValue(dimension) == value {
-			removed = append(removed, entry)
-			index++
-		} else {
-			break
+func (self Entries) Remove(entries ...r.Entry) []r.Entry {
+	indexesToRemove := make([]int, 0, len(entries))
+	for _, entry := range entries {
+		i := sort.Search(len(self), func(i int) bool {
+			return !self[i].Less(entry, 1)
+		})
+
+		indexesToRemove = append(indexesToRemove, i)
+	}
+
+	removed := 0
+	for _, index := range indexesToRemove {
+		i := index - removed
+		if i >= len(self) {
+			continue
 		}
+		removed++
+		copy(self[i:], self[i+1:])
+		self[len(self)-1] = nil // or the zero value of T
+		self = self[:len(self)-1]
 	}
 
-	return removed, self[:index]
-}
-
-func (self Entries) GetOrderedUniqueAtDimension(dimension int) []int {
-	if len(self) == 0 {
-		return []int{}
-	}
-
-	uniques := make([]int, 0, len(self))
-	index := 0
-	uniques = append(uniques, self[0].GetDimensionalValue(dimension))
-
-	for i := 1; i < len(self); i++ {
-		if self[i].GetDimensionalValue(dimension) != uniques[index] {
-			uniques = append(uniques, self[i].GetDimensionalValue(dimension))
-			index++
-		}
-	}
-
-	return uniques
+	return self
 }
 
 type Values []int

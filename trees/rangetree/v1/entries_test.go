@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"log"
+	"reflect"
 	"testing"
 
 	r "github.com/dzyp/data/trees/rangetree"
@@ -52,5 +54,40 @@ func checkEntries(t *testing.T, entries []r.Entry, expected ...r.Entry) {
 func checkLen(t *testing.T, entries []r.Entry, expected int) {
 	if len(entries) != expected {
 		t.Errorf(`Expected len: %d, received: %d`, expected, len(entries))
+	}
+}
+
+func TestRemove(t *testing.T) {
+	log.Printf(`test`)
+	p1 := newPoint(0, 0)
+
+	entries := Entries([]r.Entry{p1})
+
+	entries = entries.Remove(p1)
+
+	if len(entries) != 0 {
+		t.Errorf(`Expected len: %d, received: %d`, 0, len(entries))
+	}
+
+	p2 := newPoint(1, 1)
+
+	entries = append(entries, p1, p2)
+
+	if len(entries) != 2 {
+		t.Errorf(`Expected len: %d, received: %d`, 2, len(entries))
+	}
+
+	entries = entries.Remove(p1, p2)
+
+	if len(entries) != 0 {
+		t.Errorf(`Expected len: %d, received: %d`, 0, len(entries))
+	}
+
+	entries = append(entries, p1, p2)
+	expected := Entries([]r.Entry{p1})
+	entries = entries.Remove(p2)
+
+	if !reflect.DeepEqual(expected, entries) {
+		t.Errorf(`Expected: %+v, received: %+v`, expected, entries)
 	}
 }
